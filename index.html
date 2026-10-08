@@ -107,6 +107,7 @@ textarea.code{width:100%;min-height:150px;border:1px solid var(--line);border-ra
 .stepper{display:flex;align-items:center;gap:4px}
 .stepper button{width:36px;height:36px;border-radius:10px;background:var(--paper);font-size:20px}
 .stepper span{min-width:34px;text-align:center;font-weight:600}
+.stepper button:disabled{opacity:.35}
 input[type=range]{width:100%;accent-color:var(--green)}
 
 /* 首頁 */
@@ -262,10 +263,12 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.1.0';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
-const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto'};
+const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false};
+const TAGS = [['toeic','多益'],['dipl','外特']];
+const TAG_NAME = Object.fromEntries(TAGS);
 const INTERVALS = [1,2,4,7,15,30];
 const LV_NAME = ['暖身','視覺辨識','雙向連接','結構重組','主動輸出','精通'];
 const TYPE_BY_LV = ['card','en2zh','zh2en','letters','spell'];
@@ -310,6 +313,7 @@ function normBook(b){
 function normalizeAll(){
   if(Array.isArray(W)){ const o = {}; W.forEach(w => { if(w && w.id) o[w.id] = w; }); W = o; }
   if(!W || typeof W !== 'object') W = {};
+  for(const id in W){ const w = W[id]; if(!w || typeof w !== 'object') continue; if(w.tags == null) delete w.tags; else w.tags = normTags(w.tags); }
   B = Array.isArray(B) ? B.filter(b => b && typeof b === 'object').map(normBook) : [];
   if(!P || typeof P !== 'object') P = {};
   for(const id in P) P[id] = normProg(P[id]);
@@ -319,12 +323,27 @@ function normalizeAll(){
   S.dailyNew = clampInt(S.dailyNew, 0, 50, 10); S.batchSize = clampInt(S.batchSize, 5, 15, 8); S.linkCount = clampInt(S.linkCount, 5, 100, 20);
   S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false; S.skipWarmup = S.skipWarmup === true;
   if(!['auto','light','dark'].includes(S.theme)) S.theme = 'auto';
+  S.drawCount = Math.min(80, Math.max(16, Math.round((+S.drawCount || 40) / 8) * 8)); S.tagMigrated = S.tagMigrated === true;
   if(!L || typeof L !== 'object') L = {};
 }
 function loadAll(){
   W = store.get(K.words, {}); B = store.get(K.books, []); P = store.get(K.progress, {});
   POOL = store.get(K.pool, []); S = store.get(K.settings, {}); L = store.get(K.log, {});
-  normalizeAll();
+  normalizeAll(); migrateTags();
+}
+/* 分組標籤（v1.1） */
+function normTags(t){
+  const arr = Array.isArray(t) ? t : [t], got = new Set(arr.map(x => str(x).toLowerCase()));
+  return TAGS.map(x => x[0]).filter(k => got.has(k));
+}
+/* 一次性轉換：沒有 tags、也不是手動新增的字標為多益；總庫為空時不執行，等有字再轉 */
+function migrateTags(){
+  if(S.tagMigrated) return 0;
+  const ids = Object.keys(W); if(!ids.length) return 0;
+  let n = 0;
+  ids.forEach(id => { const w = W[id]; if(!Array.isArray(w.tags) && !w.manual){ w.tags = ['toeic']; n++; } });
+  S.tagMigrated = true; save('words','settings');
+  return n;
 }
 function save(...keys){
   const map = {words:W, books:B, progress:P, pool:POOL, settings:S, log:L};
@@ -448,13 +467,17 @@ function normZh(s){ return str(s).split(/[,，、;；]+/).map(x => x.trim()).fil
 const isManual = id => !!(W[id] && W[id].manual);
 const manualTag = id => isManual(id) ? '<span class="tag manual">手動</span>' : '';
 const manualIds = () => Object.keys(W).filter(isManual);
+const tagsOf = id => W[id] && Array.isArray(W[id].tags) ? W[id].tags : [];
+const hasTag = (id, t) => tagsOf(id).includes(t);
+const tagsHTML = id => tagsOf(id).length ? tagsOf(id).map(k => `<span class="tag">${TAG_NAME[k]}</span>`).join('') : '<span class="small">未分組</span>';
 function setBooksOf(id, sel){
   B.forEach(b => { const has = b.wordIds.includes(id);
     if(sel.has(b.id) && !has) b.wordIds.push(id);
     if(!sel.has(b.id) && has) b.wordIds = b.wordIds.filter(x => x !== id); });
 }
-function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCancel = null} = {}){
+function openAddWord({en = '', editId = null, bookIds = [], tags = [], onDone = null, onCancel = null} = {}){
   const w = editId ? W[editId] : null;
+  const tagSel = new Set(w ? tagsOf(editId) : normTags(tags));
   const sel = new Set(w ? booksOfWord(editId).map(b => b.id) : bookIds);
   const pos = w ? w.pos : '';
   const opts = POS_OPTS.includes(pos) || !pos ? POS_OPTS : POS_OPTS.concat(pos);
@@ -465,6 +488,8 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
         <label class="fld"><span>詞性</span><select id="aw-pos"><option value="">不指定</option>${opts.map(o => `<option ${o === pos ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>
       </div>
       <p class="note" id="aw-note">${w ? '英文無法修改；若拼錯，請刪除這個字後重新新增。' : ''}</p>
+      <p class="small" style="margin:18px 2px 6px">分組（選填，可複選）</p>
+      <div class="chips" id="aw-tags" style="padding:0">${TAGS.map(([k,t]) => `<button class="chip ${tagSel.has(k)?'on':''}" data-t="${k}">${t}</button>`).join('')}</div>
       <p class="small" style="margin:18px 2px 6px">加入單字簿（選填，可多選）</p>
       <div class="chips" id="aw-books" style="padding:0"></div>
       <p class="small" style="margin:18px 2px 0">之後匯入同一個字的完整資料時，會自動覆蓋這裡輸入的內容，學習進度保留。</p>`,
@@ -474,6 +499,11 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
       const drawChips = () => { chips.innerHTML = B.map(b => `<button class="chip ${sel.has(b.id)?'on':''}" data-b="${b.id}">${esc(b.name)}</button>`).join('')
         + `<button class="chip" data-b="__new" style="color:var(--green)">＋ 新增單字簿</button>`; };
       drawChips();
+      el.querySelector('#aw-tags').addEventListener('click', e => {
+        const c = e.target.closest('.chip'); if(!c) return;
+        const k = c.dataset.t; tagSel.has(k) ? tagSel.delete(k) : tagSel.add(k);
+        c.classList.toggle('on', tagSel.has(k));
+      });
       chips.addEventListener('click', e => {
         const c = e.target.closest('.chip'); if(!c) return;
         if(c.dataset.b === '__new'){ const n = str(prompt('新單字簿名稱')); if(!n) return; const b = bookByName(n) || newBook(n); save('books'); sel.add(b.id); }
@@ -481,7 +511,7 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
         drawChips();
       });
       const check = () => { if(w) return; const ex = str(enIn.value) && findByEn(enIn.value);
-        note.textContent = ex ? `總庫已有「${W[ex].en}」（${W[ex].zh}）。按「新增」只會把它加入所選的單字簿。` : ''; };
+        note.textContent = ex ? `總庫已有「${W[ex].en}」（${W[ex].zh}）。按「新增」只會把它加入所選的分組與單字簿。` : ''; };
       enIn.addEventListener('input', check); check();
       enIn.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); zhIn.focus(); } });
       zhIn.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); el.querySelector('#aw-save').click(); } });
@@ -489,7 +519,7 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
         const zh = normZh(zhIn.value), posV = el.querySelector('#aw-pos').value;
         if(w){
           if(!zh) return toast('請輸入中文意思');
-          w.zh = zh; w.pos = posV; setBooksOf(editId, sel);
+          w.zh = zh; w.pos = posV; w.tags = normTags([...tagSel]); setBooksOf(editId, sel);
           updateFinished(); save('words','books'); closeSheet(); toast('已儲存');
           return onDone ? onDone(editId) : render();
         }
@@ -499,13 +529,14 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
         const ex = findByEn(enV);
         if(ex){
           sel.forEach(bid => { const b = bookById(bid); if(b && !b.wordIds.includes(ex)) b.wordIds.push(ex); });
-          updateFinished(); save('books'); closeSheet();
-          toast(sel.size ? `總庫已有「${W[ex].en}」，已加入所選單字簿` : `總庫已有「${W[ex].en}」，沒有重複新增`);
+          if(tagSel.size) W[ex].tags = normTags(tagsOf(ex).concat([...tagSel]));
+          updateFinished(); save('words','books'); closeSheet();
+          toast(sel.size || tagSel.size ? `總庫已有「${W[ex].en}」，已加入所選${sel.size ? '單字簿' : '分組'}` : `總庫已有「${W[ex].en}」，沒有重複新增`);
           return onDone ? onDone(ex) : (render(), openWordSheet(ex));
         }
         if(!zh) return toast('請輸入中文意思');
         const id = makeId(enV);
-        W[id] = {id, en:enV, zh, pos:posV, manual:true};
+        W[id] = {id, en:enV, zh, pos:posV, manual:true, tags:normTags([...tagSel])};
         sel.forEach(bid => { const b = bookById(bid); if(b) b.wordIds.push(id); });
         updateFinished(); save('words','books'); closeSheet(); toast(`已新增「${enV}」`);
         onDone ? onDone(id) : render();
@@ -517,10 +548,21 @@ function openAddWord({en = '', editId = null, bookIds = [], onDone = null, onCan
 /* ========== 匯入單字 ========== */
 function importWords(arr){
   if(!Array.isArray(arr)) throw new Error('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。');
-  let added = 0, updated = 0; const skipped = [], replaced = [];
+  let added = 0, updated = 0, tagged = 0, tagSame = 0; const skipped = [], replaced = [], badTags = new Set();
+  const readTags = v => { (Array.isArray(v) ? v : [v]).forEach(x => { const k = str(x).toLowerCase(); if(k && !TAG_NAME[k]) badTags.add(str(x)); }); return normTags(v); };
   arr.forEach((r, i) => {
     if(!r || typeof r !== 'object'){ skipped.push(`第 ${i+1} 筆：不是物件`); return; }
     const id = str(r.id), en = str(r.en), zh = str(r.zh), pos = str(r.pos);
+    const hasTagsField = r.tags != null && r.tags !== '';
+    /* 標記用條目：只有 id 與 tags，只加分組標籤，不動內容與進度 */
+    if(id && hasTagsField && !en && !zh && !pos){
+      const tg = readTags(r.tags);
+      if(!W[id]){ skipped.push(`第 ${i+1} 筆（${id}）：總庫沒有這個字`); return; }
+      if(!tg.length){ skipped.push(`第 ${i+1} 筆（${id}）：沒有可辨識的分組標籤`); return; }
+      const old = tagsOf(id), u = normTags(old.concat(tg));
+      if(u.length === old.length) tagSame++;
+      W[id].tags = u; tagged++; return;
+    }
     if(!id || !en || !zh || !pos){
       const miss = [['id',id],['en',en],['zh',zh],['pos',pos]].filter(x => !x[1]).map(x => x[0]).join('、');
       skipped.push(`第 ${i+1} 筆${en ? `（${en}）` : ''}：缺少 ${miss}`); return;
@@ -532,12 +574,14 @@ function importWords(arr){
       const m = {prefix:str(r.morph.prefix), root:str(r.morph.root), suffix:str(r.morph.suffix)};
       if(m.prefix || m.root || m.suffix) w.morph = m;
     }
+    const newTags = hasTagsField ? readTags(r.tags) : [];
+    if((W[id] && Array.isArray(W[id].tags)) || newTags.length) w.tags = normTags(tagsOf(id).concat(newTags));
     if(W[id] && W[id].manual) replaced.push(en);
     W[id] ? updated++ : added++;
     W[id] = w;
   });
-  save('words');
-  return {added, updated, skipped, replaced};
+  migrateTags(); save('words');
+  return {added, updated, skipped, replaced, tagged, tagSame, badTags:[...badTags]};
 }
 
 /* ========== 備份 ========== */
@@ -550,7 +594,7 @@ function restoreBackup(obj){
   if((+obj.backupVersion||0) > BACKUP_VERSION) throw new Error('這份備份來自較新版本的App，請先更新App再匯入。');
   const d = obj.data;
   W = d.words || {}; B = d.books || []; P = d.progress || {}; POOL = d.wrongPool || []; S = d.settings || {}; L = d.log || {};
-  normalizeAll(); updateFinished(); saveAll(); applyTheme();
+  normalizeAll(); migrateTags(); updateFinished(); saveAll(); applyTheme();
 }
 async function exportBackup(){
   const text = JSON.stringify(makeBackup());
@@ -623,7 +667,7 @@ function closeSheet(){ $('#sheet-wrap').hidden = true; $('#sheet').innerHTML = '
 $('#sheet-wrap').addEventListener('click', e => { if(e.target.id === 'sheet-wrap'){ closeSheet(); render(); } });
 
 /* ========== 主畫面 ========== */
-let TAB = 'home', WTAB = 'books', SEARCH = '', OPEN_BOOK = null, BOOK_EDIT = false, BOOK_SEL = new Set();
+let TAB = 'home', WTAB = 'books', SEARCH = '', OPEN_BOOK = null, BOOK_EDIT = false, BOOK_SEL = new Set(), LIB_TAG = 'all', DRAWN = null;
 
 function render(){
   document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
@@ -665,9 +709,10 @@ function viewWords(){
         return `<button class="item" data-act="open-book" data-id="${b.id}"><div class="grow"><div class="t">${esc(b.name)}</div>
           <div class="d">已精通 ${s.mastered} / ${s.total}${b.finishedAt ? '　全部精通' : ''}</div><div class="bar" style="margin-top:7px"><i style="width:${r}%"></i></div></div>${CHEV}</button>`; }).join('')}</div>`
       : `<div class="empty">還沒有單字簿。點下方按鈕新增，再從總庫挑選單字。</div>`;
-    body += `<div style="height:14px"></div><button class="btn ghost" data-act="new-book">新增單字簿</button>`;
+    body += `<div style="height:14px"></div><div class="row"><button class="btn ghost" data-act="new-book">新增單字簿</button><button class="btn ghost" data-act="draw-open">抽取單字</button></div>`;
   } else if(WTAB === 'library'){
     body = `<div class="lib-top"><input class="search" id="lib-search" type="search" placeholder="搜尋英文或中文" value="${esc(SEARCH)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="add-word">新增</button></div>
+      <div class="seg" style="margin:10px 0 0">${[['all','全部']].concat(TAGS).map(([k,t]) => `<button class="${LIB_TAG===k?'on':''}" data-act="lib-tag" data-k="${k}">${t}</button>`).join('')}</div>
       <p class="small" id="lib-count" style="margin:10px 2px 8px"></p><div class="panel" id="lib-list"></div>`;
   } else {
     const ids = poolIds();
@@ -682,7 +727,7 @@ function viewWords(){
 }
 function renderLibList(){
   const q = SEARCH.toLowerCase();
-  const ids = Object.keys(W).filter(id => !q || W[id].en.toLowerCase().includes(q) || W[id].zh.includes(SEARCH));
+  const ids = Object.keys(W).filter(id => (LIB_TAG === 'all' || hasTag(id, LIB_TAG)) && (!q || W[id].en.toLowerCase().includes(q) || W[id].zh.includes(SEARCH)));
   const list = $('#lib-list'); if(!list) return;
   $('#lib-count').textContent = `${q ? '符合' : '共'} ${ids.length} 個字`;
   const canAdd = SEARCH && /[a-z]/i.test(SEARCH) && !/[^\x20-\x7E]/.test(SEARCH) && !findByEn(SEARCH);
@@ -698,6 +743,9 @@ function viewBook(b){
   const s = bookStats(b), ids = b.wordIds.filter(id => W[id]);
   return `<button class="btn sm ghost" data-act="close-book" style="margin-bottom:10px">‹ 單字簿</button>
     <h1>${esc(b.name)}</h1><p class="sub">已精通 ${s.mastered} / ${s.total}，已學過 ${s.learned}</p>
+    ${DRAWN && DRAWN.id === b.id ? `<div class="panel" style="padding:12px 16px;margin-top:14px;background:var(--green-soft);border-color:transparent">
+      <div style="font-size:14px">已抽取 ${DRAWN.n} 個字。${DRAWN.short ? '此分組的新字已全部抽完。' : ''}可到「設定 → 今日訓練的新字來源」選這本，每天的新字就會從這本出。</div>
+      <button class="btn sm ghost" data-act="goto-train" style="margin-top:10px">前往設定</button></div>` : ''}
     <div class="row" style="margin:16px 0 12px">
       <button class="btn sm" data-act="book-add">加入單字</button>
       <button class="btn sm ghost" data-act="book-edit">${BOOK_EDIT ? '取消' : '移除單字'}</button>
@@ -721,7 +769,7 @@ function viewSettings(){
       <div class="lbl"><div class="grow">每日新字數</div>${stp('dailyNew',0,50)}</div>
       <div class="lbl"><div class="grow">跳過暖身<div class="small">新字不顯示單字卡，直接從英選中開始</div></div>${sw('skipWarmup', S.skipWarmup)}</div>
       <div class="lbl"><div class="grow">每輪字數<div class="small">綜合精通一次處理幾個字</div></div>${stp('batchSize',5,15)}</div>
-      <div class="lbl"><div class="grow">今日訓練的新字來源<div class="small">都不選代表全部單字</div></div></div>
+      <div class="lbl" id="train-src"><div class="grow">今日訓練的新字來源<div class="small">都不選代表全部單字</div></div></div>
       <div class="chips">${B.length ? B.map(b => `<button class="chip ${S.trainBooks.includes(b.id)?'on':''}" data-act="train-book" data-id="${b.id}">${esc(b.name)}</button>`).join('') : '<span class="small">尚無單字簿</span>'}</div>
     </div>
     <h2>發音</h2>
@@ -764,6 +812,7 @@ function openWordSheet(id){
       ${p && p.srs ? `<div class="lbl"><span>下次複習</span><span>${p.srs.due}</span></div>` : ''}
       ${p && p.wrongTotal ? `<div class="lbl"><span>累計答錯</span><span>${p.wrongTotal} 次</span></div>` : ''}
       ${ts ? `<div class="lbl" style="display:block"><div>各題型</div><div class="small">${ts}</div></div>` : ''}
+      <div class="lbl"><span>分組</span><span>${tagsHTML(id)}</span></div>
       <div class="lbl" style="display:block"><div>所屬單字簿</div><div>${books.length ? books.map(b => `<span class="tag">${esc(b.name)}</span>`).join('') : '<span class="small">尚未加入任何單字簿</span>'}</div></div>
     </div>
     ${w.manual ? `<p class="small" style="margin:12px 2px 0">這是手動新增的字。之後匯入同一個字的完整資料時，會自動覆蓋。</p>` : ''}
@@ -831,6 +880,65 @@ function openScopeSheet(){
       });
       el.querySelector('#scope-skip').addEventListener('click', e => { S.skipWarmup = !S.skipWarmup; e.currentTarget.classList.toggle('on', S.skipWarmup); save('settings'); });
       el.querySelector('#scope-go').addEventListener('click', () => { closeSheet(); startMastery([...sel]); render(); });
+    }});
+}
+
+/* ========== 抽取單字（v1.1） ========== */
+function drawPool(tag, incl){
+  const inBook = new Set(); B.forEach(b => b.wordIds.forEach(id => inBook.add(id)));
+  return Object.keys(W).filter(id => {
+    if(!hasTag(id, tag) || inBook.has(id)) return false;
+    const p = P[id], l = p ? p.level : 0;
+    if(l >= 5) return false;
+    return incl || (l === 0 && !(p && p.learnedAt));
+  });
+}
+const mmdd = () => { const d = new Date(); return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0'); };
+function uniqueBookName(n){ if(!bookByName(n)) return n; let k = 2; while(bookByName(`${n}（${k}）`)) k++; return `${n}（${k}）`; }
+function openDrawSheet(){
+  let tag = LIB_TAG !== 'all' ? LIB_TAG : 'toeic', incl = false, nameEdited = false;
+  const defName = n => `${TAG_NAME[tag]} ${mmdd()}（${n} 字）`;
+  openSheet({title:'抽取單字', right:'取消', onRight: () => closeSheet(),
+    body:`<p class="small" style="margin:0 2px 10px">從分組中隨機抽出還沒學過、也還沒放進任何單字簿的字，自動建立一本單字簿。</p>
+      <div class="seg" id="dr-tag" style="margin:0 0 14px">${TAGS.map(([k,t]) => `<button data-k="${k}">${t}</button>`).join('')}</div>
+      <div class="panel">
+        <div class="lbl"><div class="grow">字數<div class="small">8 個字為一組，40 字剛好 5 組</div></div><div class="stepper"><button id="dr-minus" aria-label="減少">−</button><span id="dr-n"></span><button id="dr-plus" aria-label="增加">+</button></div></div>
+        <div class="lbl"><div class="grow">包含已學過但未精通的字<div class="small">另外加入 Lv 1–4 的字；已精通的字不會抽到</div></div><button class="switch" id="dr-incl" aria-pressed="false"></button></div>
+        <label class="fld"><span>名稱</span><input id="dr-name" type="text" autocomplete="off" enterkeyhint="done"></label>
+      </div>
+      <p class="small" id="dr-avail" style="margin:10px 2px 0"></p>`,
+    foot:`<button class="btn" id="dr-go">抽取並建立單字簿</button>`,
+    mount: el => {
+      const $$ = q => el.querySelector(q), nameIn = $$('#dr-name');
+      const upd = () => {
+        el.querySelectorAll('#dr-tag button').forEach(b => b.classList.toggle('on', b.dataset.k === tag));
+        $$('#dr-n').textContent = S.drawCount;
+        $$('#dr-minus').disabled = S.drawCount <= 16; $$('#dr-plus').disabled = S.drawCount >= 80;
+        $$('#dr-incl').classList.toggle('on', incl); $$('#dr-incl').setAttribute('aria-pressed', incl);
+        const avail = drawPool(tag, incl).length, av = $$('#dr-avail');
+        av.textContent = !avail ? `「${TAG_NAME[tag]}」目前沒有可抽取的字。` : avail < S.drawCount ? `目前只有 ${avail} 個字可抽，會全部抽出。` : `目前有 ${avail} 個字可抽。`;
+        av.style.color = avail < S.drawCount ? 'var(--brass)' : '';
+        $$('#dr-go').disabled = !avail;
+        if(!nameEdited) nameIn.value = defName(avail ? Math.min(S.drawCount, avail) : S.drawCount);
+      };
+      upd();
+      $$('#dr-tag').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; tag = b.dataset.k; upd(); });
+      const step = d => { S.drawCount = Math.min(80, Math.max(16, S.drawCount + d)); save('settings'); upd(); };
+      $$('#dr-minus').addEventListener('click', () => step(-8));
+      $$('#dr-plus').addEventListener('click', () => step(8));
+      $$('#dr-incl').addEventListener('click', () => { incl = !incl; upd(); });
+      nameIn.addEventListener('input', () => { nameEdited = !!str(nameIn.value); });
+      nameIn.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); nameIn.blur(); } });
+      $$('#dr-go').addEventListener('click', () => {
+        const pool = drawPool(tag, incl);
+        if(!pool.length) return toast(`「${TAG_NAME[tag]}」目前沒有可抽取的字`);
+        const ids = shuffle(pool).slice(0, S.drawCount), short = pool.length < S.drawCount;
+        const b = newBook(uniqueBookName(nameEdited && str(nameIn.value) ? str(nameIn.value) : defName(ids.length)));
+        b.wordIds = ids; updateFinished(); save('books'); closeSheet();
+        DRAWN = {id:b.id, n:ids.length, short}; OPEN_BOOK = b.id; BOOK_EDIT = false; BOOK_SEL.clear();
+        render(); window.scrollTo(0,0);
+        toast(short ? '此分組的新字已全部抽完' : `已建立「${b.name}」`);
+      });
     }});
 }
 
@@ -1156,12 +1264,15 @@ function doImportWords(text){
   const out = $('#import-result');
   try{
     const r = importWords(parseJSON(text));
+    const notFound = r.skipped.filter(x => x.endsWith('總庫沒有這個字')).length;
     out.style.color = '';
     out.textContent = `已放進總庫：新增 ${r.added} 個字，更新 ${r.updated} 個字`
+      + (r.tagged ? `\n已加上分組標籤 ${r.tagged} 個字${r.tagSame ? `（其中 ${r.tagSame} 個原本就已有這些分組）` : ''}` : '')
       + (r.replaced.length ? `\n已用完整資料覆蓋 ${r.replaced.length} 個手動新增的字（進度保留）：${r.replaced.slice(0,30).join('、')}${r.replaced.length > 30 ? '…' : ''}` : '')
-      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
+      + (r.badTags.length ? `\n無法辨識的分組標籤已忽略：${r.badTags.join('、')}` : '')
+      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆${notFound ? `（其中 ${notFound} 筆總庫沒有這個字）` : ''}：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
     $('#import-text').value = '';
-    toast(`匯入完成：新增 ${r.added}、更新 ${r.updated}`);
+    toast(`匯入完成：新增 ${r.added}、更新 ${r.updated}${r.tagged ? `、加上分組 ${r.tagged}` : ''}`);
   }catch(e){ out.style.color = 'var(--red)'; out.textContent = e.message; }
 }
 function doRestore(text){
@@ -1173,10 +1284,13 @@ function doRestore(text){
 }
 
 const ACT = {
-  tab: el => { TAB = el.dataset.tab; OPEN_BOOK = null; BOOK_EDIT = false; render(); window.scrollTo(0,0); },
+  tab: el => { TAB = el.dataset.tab; OPEN_BOOK = null; DRAWN = null; BOOK_EDIT = false; render(); window.scrollTo(0,0); },
   wtab: el => { WTAB = el.dataset.k; render(); },
   speak: el => speak(el.dataset.text),
-  'add-word': el => openAddWord({en: el.dataset.en || ''}),
+  'add-word': el => openAddWord({en: el.dataset.en || '', tags: TAB === 'words' && WTAB === 'library' && LIB_TAG !== 'all' ? [LIB_TAG] : []}),
+  'lib-tag': el => { LIB_TAG = el.dataset.k; render(); },
+  'draw-open': () => { if(!Object.keys(W).length) return toast('總庫還沒有單字'); openDrawSheet(); },
+  'goto-train': () => { DRAWN = null; OPEN_BOOK = null; TAB = 'settings'; render(); setTimeout(() => { const e = $('#train-src'); if(e) e.scrollIntoView({block:'center'}); }, 30); },
   'word-edit': el => { const id = el.dataset.id; openAddWord({editId:id, onDone: () => { render(); openWordSheet(id); }, onCancel: () => openWordSheet(id)}); },
   'copy-manual': async () => {
     const list = manualIds().map(id => W[id].en).sort((a,b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1);
@@ -1190,7 +1304,7 @@ const ACT = {
   'start-pool': () => { const p = poolIds(); if(p.length) startSession([PoolPhase(shuffle(p).slice(0, POOL_CAP))]); },
   word: el => openWordSheet(el.dataset.id),
   'open-book': el => { OPEN_BOOK = el.dataset.id; BOOK_EDIT = false; BOOK_SEL.clear(); render(); window.scrollTo(0,0); },
-  'close-book': () => { OPEN_BOOK = null; BOOK_EDIT = false; render(); },
+  'close-book': () => { OPEN_BOOK = null; DRAWN = null; BOOK_EDIT = false; render(); },
   'new-book': () => { const n = str(prompt('單字簿名稱')); if(!n) return; if(bookByName(n)) return toast('已有同名的單字簿'); newBook(n); save('books'); render(); },
   'book-add': () => { const b = bookById(OPEN_BOOK); if(!Object.keys(W).length) return toast('總庫還沒有單字'); openBookPicker(b); },
   'book-edit': () => { BOOK_EDIT = !BOOK_EDIT; BOOK_SEL.clear(); render(); },
