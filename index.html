@@ -197,6 +197,13 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .sumgrid b{display:block;font-family:var(--serif);font-size:26px}
 .sumgrid span{font-size:13px;color:var(--muted)}
 
+.vbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:58px;padding:10px 16px;border-radius:14px;font-weight:700;font-size:17px;width:100%;text-align:left}
+.vbar.ok{background:var(--ok-soft);color:var(--ok)}
+.vbar.no{background:var(--red-soft);color:var(--red)}
+.vbar small{font-weight:500;font-size:13px;color:var(--muted);text-align:right}
+.vbar .ans{display:block;font-family:var(--serif);font-size:19px;font-weight:600;color:var(--ink);margin-top:1px}
+.stat-line{display:flex;gap:18px;margin:14px 0 18px;color:var(--muted);font-size:14px}
+.stat-line b{font-family:var(--serif);font-size:20px;color:var(--ink);margin-right:3px}
 #toast{position:fixed;left:50%;bottom:calc(var(--sb) + 96px);transform:translateX(-50%);background:var(--ink);color:var(--paper);
   padding:10px 16px;border-radius:12px;font-size:15px;z-index:60;max-width:86%;text-align:center;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
@@ -212,8 +219,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <body>
 <main id="view"></main>
 <nav id="tabbar">
-  <button data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>今日</button>
-  <button data-act="tab" data-tab="practice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg>練習</button>
+  <button data-act="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg>練習</button>
   <button data-act="tab" data-tab="words"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H19v-3"/><path d="M8 7h7M8 10.5h5"/></svg>單字</button>
   <button data-act="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>設定</button>
 </nav>
@@ -234,10 +240,10 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.0.1';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
-const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[]};
+const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false};
 const INTERVALS = [1,2,4,7,15,30];
 const LV_NAME = ['暖身','視覺辨識','雙向連接','結構重組','主動輸出','精通'];
 const TYPE_BY_LV = ['card','en2zh','zh2en','letters','spell'];
@@ -289,7 +295,7 @@ function normalizeAll(){
   S = Object.assign({}, DEF_SETTINGS, S && typeof S === 'object' ? S : {});
   if(!Array.isArray(S.trainBooks)) S.trainBooks = [];
   S.dailyNew = clampInt(S.dailyNew, 0, 50, 10); S.batchSize = clampInt(S.batchSize, 5, 15, 8); S.linkCount = clampInt(S.linkCount, 5, 100, 20);
-  S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false;
+  S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false; S.skipWarmup = S.skipWarmup === true;
   if(!L || typeof L !== 'object') L = {};
 }
 function loadAll(){
@@ -403,7 +409,7 @@ function deleteWord(id){
 /* ========== 匯入單字 ========== */
 function importWords(arr){
   if(!Array.isArray(arr)) throw new Error('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。');
-  let added = 0, updated = 0; const skipped = [], touched = new Set();
+  let added = 0, updated = 0; const skipped = [];
   arr.forEach((r, i) => {
     if(!r || typeof r !== 'object'){ skipped.push(`第 ${i+1} 筆：不是物件`); return; }
     const id = str(r.id), en = str(r.en), zh = str(r.zh), pos = str(r.pos);
@@ -420,14 +426,9 @@ function importWords(arr){
     }
     W[id] ? updated++ : added++;
     W[id] = w;
-    if(Array.isArray(r.books)) r.books.map(str).filter(Boolean).forEach(name => {
-      const b = bookByName(name) || newBook(name);
-      if(!b.wordIds.includes(id)) b.wordIds.push(id);
-      touched.add(name);
-    });
   });
-  updateFinished(); save('words','books');
-  return {added, updated, skipped, books:[...touched]};
+  save('words');
+  return {added, updated, skipped};
 }
 
 /* ========== 備份 ========== */
@@ -518,7 +519,7 @@ let TAB = 'home', WTAB = 'books', SEARCH = '', OPEN_BOOK = null, BOOK_EDIT = fal
 function render(){
   document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
   const v = $('#view');
-  v.innerHTML = ({home:viewHome, practice:viewPractice, words:viewWords, settings:viewSettings})[TAB]();
+  v.innerHTML = ({home:viewHome, words:viewWords, settings:viewSettings})[TAB]();
   if(TAB === 'words' && WTAB === 'library' && !OPEN_BOOK) renderLibList();
 }
 
@@ -526,34 +527,23 @@ function viewHome(){
   const n = Object.keys(W).length;
   const d = new Date();
   const dateStr = `${d.getMonth()+1} 月 ${d.getDate()} 日 星期${'日一二三四五六'[d.getDay()]}`;
-  if(!n) return `<p class="sub">${dateStr}</p><h1>今日訓練</h1>
+  if(!n) return `<p class="sub">${dateStr}</p><h1>練習</h1>
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
     <button class="btn" data-act="goto-import">匯入單字</button></div>`;
   const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays();
+  const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const newLeft = Math.max(0, S.dailyNew - (tl.nw || 0));
-  const acc = tl.n ? Math.round(tl.c / tl.n * 100) : null;
-  return `<div class="today-head"><div><p class="sub">${dateStr}</p><h1>今日訓練</h1></div>
-    <div class="streak"><b>${st}</b><div class="small">連續天數</div></div></div>
-    <div class="ledger">
-      <div class="ln"><span>到期複習</span><b>${due}</b></div>
-      <div class="ln"><span>錯字池</span><b>${pool}</b></div>
-      <div class="ln"><span>今日新字</span><b>${tl.nw || 0}<small class="small"> / ${S.dailyNew}</small></b></div>
-    </div>
-    <button class="btn start" data-act="start-today">開始今日訓練</button>
-    <p class="small daynote">依序進行：到期複習 → 錯字池 → ${newLeft ? `學新字（還有 ${newLeft} 個）` : '進行中的單字'}</p>
-    ${tl.n ? `<p class="small daynote">今天已作答 ${tl.n} 題，正確率 ${acc}%</p>` : ''}`;
-}
-
-function viewPractice(){
-  const n = Object.keys(W).length, due = dueIds().length, pool = poolIds().length;
-  return `<h1>練習</h1><p class="sub">自選範圍與模式</p><div style="height:16px"></div>
-    <button class="mode" data-act="pick-mastery" ${n ? '' : 'disabled'}>
-      <div class="t">綜合精通</div><div class="d">從暖身到拼寫，一個字升到 Lv 5。可選擇單字簿範圍。</div></button>
+  const acc = tl.n ? Math.round(tl.c / tl.n * 100) + '%' : '—';
+  return `<p class="sub">${dateStr}</p><h1>練習</h1>
+    <div class="stat-line"><span><b>${st}</b>連續天數</span><span><b>${tl.n || 0}</b>今日作答</span><span><b>${acc}</b>正確率</span></div>
+    <button class="mode" data-act="pick-mastery">
+      <div class="t">綜合精通<span class="n">${unmastered}</span></div><div class="d">尚未精通的字從暖身練到拼寫，升到 Lv 5。${S.skipWarmup ? '目前設定為跳過暖身。' : ''}</div></button>
     <button class="mode" data-act="start-review" ${due ? '' : 'disabled'}>
-      <div class="t">遺忘曲線複習<span class="n">${due}</span></div><div class="d">已精通的字在第 1、2、4、7、15、30 天後再複習。</div></button>
+      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">已精通的字在第 1、2、4、7、15、30 天後再複習。</div></button>
     <button class="mode" data-act="start-pool" ${pool ? '' : 'disabled'}>
-      <div class="t">常錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
-    <p class="small" style="margin-top:20px">連結訓練、弱點分析、詞性挑戰將在下一版加入；目前的作答紀錄都會保留供日後分析。</p>`;
+      <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
+    <button class="mode" data-act="start-today">
+      <div class="t">今日訓練</div><div class="d">依序完成到期複習、錯字複習和今日新字${newLeft ? `（還有 ${newLeft} 個）` : '（今日新字已學完）'}。</div></button>`;
 }
 
 function viewWords(){
@@ -615,6 +605,7 @@ function viewSettings(){
     <h2>學習</h2>
     <div class="panel">
       <div class="lbl"><div class="grow">每日新字數</div>${stp('dailyNew',0,50)}</div>
+      <div class="lbl"><div class="grow">跳過暖身<div class="small">新字不顯示單字卡，直接從英選中開始</div></div>${sw('skipWarmup', S.skipWarmup)}</div>
       <div class="lbl"><div class="grow">每輪字數<div class="small">綜合精通一次處理幾個字</div></div>${stp('batchSize',5,15)}</div>
       <div class="lbl"><div class="grow">今日訓練的新字來源<div class="small">都不選代表全部單字</div></div></div>
       <div class="chips">${B.length ? B.map(b => `<button class="chip ${S.trainBooks.includes(b.id)?'on':''}" data-act="train-book" data-id="${b.id}">${esc(b.name)}</button>`).join('') : '<span class="small">尚無單字簿</span>'}</div>
@@ -627,7 +618,8 @@ function viewSettings(){
     </div>
     <h2 id="import-sec">匯入單字</h2>
     <div class="panel" style="padding:14px 16px">
-      <textarea class="code" id="import-text" placeholder='貼上單字 JSON，例如 [{"id":"w0001","en":"ratify","zh":"批准（條約）","pos":"v."}]' autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <p class="small" style="margin:0 0 10px">匯入的單字只會放進總庫。要分組練習，請到「單字 → 單字簿」挑選。</p>
+      <textarea class="code" id="import-text" placeholder='貼上單字 JSON，例如 [{"id":"w_ratify","en":"ratify","zh":"批准（條約）","pos":"v."}]' autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="import-file">選擇檔案</button><button class="btn sm" data-act="import-words">匯入</button></div>
       <div class="result" id="import-result"></div>
     </div>
@@ -695,12 +687,13 @@ function openBookPicker(b){
 }
 
 function openScopeSheet(){
-  const sel = new Set();
+  const sel = new Set(['__all']);
   const opts = [['__all','全部單字', Object.keys(W).length]].concat(B.map(b => { const s = bookStats(b); return [b.id, b.name, `${s.mastered}/${s.total}`]; }));
   openSheet({title:'綜合精通', right:'取消',
     body:`<p class="small" style="margin:0 2px 10px">選擇出題範圍，可多選合併。</p><div class="panel" id="scope-list">${opts.map(([id,name,info]) => `
-      <button class="item" data-id="${id}"><span class="check"></span><div class="grow t">${esc(name)}</div><span class="small">${info}</span></button>`).join('')}</div>`,
-    foot:`<button class="btn" id="scope-go" disabled>開始</button>`,
+      <button class="item" data-id="${id}"><span class="check ${sel.has(id)?'on':''}"></span><div class="grow t">${esc(name)}</div><span class="small">${info}</span></button>`).join('')}</div>
+      <div class="panel" style="margin-top:14px"><div class="lbl"><div class="grow">跳過暖身<div class="small">新字直接從英選中開始</div></div><button class="switch ${S.skipWarmup?'on':''}" id="scope-skip"></button></div></div>`,
+    foot:`<button class="btn" id="scope-go">開始</button>`,
     onRight: () => closeSheet(),
     mount: el => {
       el.querySelector('#scope-list').addEventListener('click', e => {
@@ -709,7 +702,8 @@ function openScopeSheet(){
         it.querySelector('.check').classList.toggle('on', sel.has(id));
         el.querySelector('#scope-go').disabled = !sel.size;
       });
-      el.querySelector('#scope-go').addEventListener('click', () => { closeSheet(); startMastery([...sel]); });
+      el.querySelector('#scope-skip').addEventListener('click', e => { S.skipWarmup = !S.skipWarmup; e.currentTarget.classList.toggle('on', S.skipWarmup); save('settings'); });
+      el.querySelector('#scope-go').addEventListener('click', () => { closeSheet(); startMastery([...sel]); render(); });
     }});
 }
 
@@ -727,7 +721,7 @@ function MasteryPhase(batch, scope){
       if(this.sinceMatch >= 7 && matchable.length >= 3){ this.sinceMatch = 0; return {type:'match', ids: shuffle(matchable.slice()).slice(0,5), scope:this.scope}; }
       let cand = pending.filter(id => id !== this.last); if(!cand.length) cand = pending;
       const id = pick(cand); this.last = id;
-      return {type: TYPE_BY_LV[lvl(id)], id, scope: this.scope};
+      return {type: lvl(id) === 0 && S.skipWarmup ? 'en2zh' : TYPE_BY_LV[lvl(id)], id, scope: this.scope};
     },
     onResult(q, ok){
       const p = prog(q.id);
@@ -735,13 +729,18 @@ function MasteryPhase(batch, scope){
         if(!p.learnedAt){ p.learnedAt = Date.now(); logDay().nw++; SES.newL++; }
         p.level = Math.max(p.level, 1); p.lastSeen = Date.now(); return '';
       }
+      const fresh = p.level === 0;
+      if(fresh){
+        if(!p.learnedAt){ p.learnedAt = Date.now(); logDay().nw++; SES.newL++; }
+        p.level = 1;
+      }
       if(ok){
         p.level = Math.min(5, p.level + 1);
         if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; SES.mastered++; return '精通！明天會安排第一次複習'; }
         return `升到 Lv ${p.level} ${LV_NAME[p.level]}`;
       }
       p.level = Math.max(0, p.level - 1);
-      return `降回 Lv ${p.level}，已加入錯字池`;
+      return fresh ? '已加入錯字池' : `降回 Lv ${p.level}，已加入錯字池`;
     },
     onMatchWrong(id){ const p = prog(id); p.level = Math.max(0, Math.min(p.level, 4) - 1); },
     progress(){
@@ -788,6 +787,7 @@ function startSession(phases, opts = {}){
   nextQ();
 }
 function nextQ(){
+  clearTimeout(SES.timer);
   while(SES.pi < SES.phases.length){
     const ph = SES.phases[SES.pi], q = ph.next();
     if(q){ q.phase = ph; SES.q = q; renderQ(q); return; }
@@ -807,7 +807,7 @@ function setHeader(){
 }
 function stampsHTML(id){
   const l = lvl(id);
-  return `<div class="stamps">${[0,1,2,3,4].map(i => `<i class="${i<l?'f':''}"></i>`).join('')}<span>Lv ${l} ${LV_NAME[l]}</span></div>`;
+  return `<div class="stamps">${[0,1,2,3,4].map(i => `<i class="${i<l?'f':''}"></i>`).join('')}<span>${l === 0 && S.skipWarmup ? '新字' : `Lv ${l} ${LV_NAME[l]}`}</span></div>`;
 }
 
 function renderQ(q){
@@ -873,17 +873,18 @@ function answer(ok, extra = {}){
   updateFinished(); save('progress','pool','log','books');
   showFeedback(q, ok, note, extra);
 }
-function showFeedback(q, ok, note, extra){
+function showFeedback(q, ok, note){
   const w = W[q.id];
-  const fb = document.createElement('div');
-  fb.className = 'fb';
-  fb.innerHTML = `<div class="verdict ${ok?'ok':'no'}"><span>${ok ? '答對了' : '答錯了'}</span><small>${esc(note)}</small></div>
-    ${!ok && extra.input ? `<div class="yours">你的答案：<b>${esc(extra.input)}</b></div>` : ''}${wordDetail(w)}`;
-  $('#s-body').appendChild(fb);
-  $('#s-foot').innerHTML = `<button class="btn" data-act="next">繼續</button>`;
+  const ans = q.type === 'en2zh' ? w.zh : w.en;
+  $('#s-foot').innerHTML = `<button class="vbar ${ok?'ok':'no'}" data-act="next"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(ans)}</span>`}</span><small>${esc(note)}</small></button>`;
   setHeader();
-  if(q.type !== 'en2zh') autoSpeak(w.en);
-  setTimeout(() => fb.scrollIntoView({behavior:'smooth', block:'nearest'}), 30);
+  if(!ok && q.type !== 'en2zh') autoSpeak(w.en);
+  scheduleNext(ok ? 900 : 2200);
+}
+function scheduleNext(ms){
+  const s = SES, q = s.q; q.doneAt = Date.now();
+  clearTimeout(s.timer);
+  s.timer = setTimeout(() => { if(SES === s && s.q === q) nextQ(); }, ms);
 }
 function checkSpell(){
   const q = SES && SES.q; if(!q || q.done || q.type !== 'spell') return;
@@ -928,14 +929,13 @@ function finishMatch(q){
   });
   updateFinished(); save('progress','pool','log','books');
   const wrong = q.ids.filter(id => q.mistakes.has(id));
-  $('#s-body').innerHTML += `<div class="fb"><div class="verdict ${wrong.length?'no':'ok'}"><span>${wrong.length ? `配錯 ${wrong.length} 個字` : '全部配對正確'}</span></div>
-    ${wrong.length ? `<p class="small" style="margin:0 0 8px">以下單字降一級並加入錯字池：</p>${wrong.map(id => `<div class="row" style="padding:6px 0"><span class="en" style="font-size:18px;flex:1">${esc(W[id].en)}</span><span>${esc(W[id].zh)}</span></div>`).join('')}` : ''}</div>`;
-  $('#s-foot').innerHTML = `<button class="btn" data-act="next">繼續</button>`;
+  $('#s-foot').innerHTML = `<button class="vbar ${wrong.length?'no':'ok'}" data-act="next"><span>${wrong.length ? `配錯 ${wrong.length} 個字` : '全部配對正確'}</span><small>${wrong.length ? '配錯的字降一級，已加入錯字池' : ''}</small></button>`;
   setHeader();
+  scheduleNext(wrong.length ? 1800 : 900);
 }
 
 function endSession(){
-  const s = SES;
+  const s = SES; s.ended = true;
   $('#s-label').textContent = '完成'; $('#s-count').textContent = ''; $('#s-bar').style.width = '100%';
   const acc = s.ans ? Math.round(s.cor/s.ans*100) : 0;
   $('#s-body').innerHTML = `<div class="summary"><div class="big">${s.ans ? acc + '%' : '✓'}</div><p class="sub" style="margin-top:8px">${s.ans ? '本次正確率' : '這一輪完成了'}</p></div>
@@ -982,7 +982,7 @@ function doImportWords(text){
   try{
     const r = importWords(parseJSON(text));
     out.style.color = '';
-    out.textContent = `新增 ${r.added} 個字，更新 ${r.updated} 個字` + (r.books.length ? `\n加入單字簿：${r.books.join('、')}` : '') + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
+    out.textContent = `已放進總庫：新增 ${r.added} 個字，更新 ${r.updated} 個字` + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
     $('#import-text').value = '';
     toast(`匯入完成：新增 ${r.added}、更新 ${r.updated}`);
   }catch(e){ out.style.color = 'var(--red)'; out.textContent = e.message; }
@@ -1056,7 +1056,7 @@ const ACT = {
   quit: () => { if(!SES || !SES.ans || confirm('要結束這次練習嗎？已作答的進度都已儲存。')) closeSession(); },
   'quit-now': () => closeSession(),
   again: () => { const f = SES.opts.again; closeSession(); f(); },
-  next: () => nextQ(),
+  next: () => { if(SES && !SES.ended && SES.q && SES.q.done) nextQ(); },
   'card-next': () => { const q = SES.q; if(q.done) return; q.done = true; q.phase.onResult(q, true); save('progress','log'); nextQ(); },
   opt: el => {
     const q = SES.q; if(q.done) return;
@@ -1088,6 +1088,11 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   if(e.target.id === 'lib-search'){ SEARCH = e.target.value.trim(); renderLibList(); }
   if(e.target.id === 'rate'){ S.rate = +e.target.value; $('#rate-v').textContent = S.rate.toFixed(2); save('settings'); }
+});
+$('#s-body').addEventListener('click', e => {
+  const q = SES && SES.q;
+  if(!q || !q.done || SES.ended || Date.now() - (q.doneAt || 0) < 300 || e.target.closest('[data-act=speak]')) return;
+  nextQ();
 });
 document.addEventListener('visibilitychange', () => { if(!document.hidden && !SES) render(); });
 
