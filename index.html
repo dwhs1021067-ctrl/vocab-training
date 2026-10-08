@@ -157,7 +157,13 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .sh-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
 .sh-head b{font-size:17px}
 .sh-head button{color:var(--green);font-weight:600;min-width:44px;min-height:36px}
-.sh-body{overflow-y:auto;padding:14px 16px;-webkit-overflow-scrolling:touch}
+.sh-body{overflow-y:auto;padding:14px 16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#sheet.tall{height:calc(100% - var(--st) - 20px)}
+#sheet.tall .sh-body{flex:1}
+.sh-top{padding:12px 16px 0;border-bottom:1px solid var(--line);background:var(--paper)}
+.sh-top .small{margin:8px 2px 10px}
+.stick-top{position:sticky;top:0;z-index:5;background:var(--paper);margin:0 -18px;padding:calc(var(--st) + 8px) 18px 2px}
+.stick-bottom{position:sticky;bottom:calc(var(--sb) + 70px);z-index:5;margin-top:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)}
 .sh-foot{padding:10px 16px calc(var(--sb) + 12px);border-top:1px solid var(--line)}
 
 /* 練習畫面 */
@@ -263,7 +269,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false};
@@ -656,15 +662,17 @@ function wordDetail(w){
 
 /* ========== 底部面板 ========== */
 let sheetDone = null;
-function openSheet({title, body, foot = '', right = '關閉', onRight = null, mount = null}){
+function openSheet({title, body, foot = '', right = '關閉', onRight = null, mount = null, top = '', tall = false}){
+  $('#sheet').className = tall ? 'tall' : '';
   $('#sheet').innerHTML = `<div class="sh-head"><span style="min-width:44px"></span><b>${esc(title)}</b><button data-act="sheet-right">${esc(right)}</button></div>
-    <div class="sh-body">${body}</div>${foot ? `<div class="sh-foot">${foot}</div>` : ''}`;
+    ${top ? `<div class="sh-top">${top}</div>` : ''}<div class="sh-body">${body}</div>${foot ? `<div class="sh-foot">${foot}</div>` : ''}`;
   sheetDone = onRight;
   $('#sheet-wrap').hidden = false;
   if(mount) mount($('#sheet'));
 }
 function closeSheet(){ $('#sheet-wrap').hidden = true; $('#sheet').innerHTML = ''; sheetDone = null; }
-$('#sheet-wrap').addEventListener('click', e => { if(e.target.id === 'sheet-wrap'){ closeSheet(); render(); } });
+/* 點面板外的背景：與右上角按鈕相同（關閉、取消或完成），避免挑好的字沒有存到 */
+$('#sheet-wrap').addEventListener('click', e => { if(e.target.id === 'sheet-wrap'){ if(sheetDone) sheetDone(); else { closeSheet(); render(); } } });
 
 /* ========== 主畫面 ========== */
 let TAB = 'home', WTAB = 'books', SEARCH = '', OPEN_BOOK = null, BOOK_EDIT = false, BOOK_SEL = new Set(), LIB_TAG = 'all', DRAWN = null;
@@ -711,9 +719,9 @@ function viewWords(){
       : `<div class="empty">還沒有單字簿。點下方按鈕新增，再從總庫挑選單字。</div>`;
     body += `<div style="height:14px"></div><div class="row"><button class="btn ghost" data-act="new-book">新增單字簿</button><button class="btn ghost" data-act="draw-open">抽取單字</button></div>`;
   } else if(WTAB === 'library'){
-    body = `<div class="lib-top"><input class="search" id="lib-search" type="search" placeholder="搜尋英文或中文" value="${esc(SEARCH)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="add-word">新增</button></div>
+    body = `<div class="stick-top"><div class="lib-top"><input class="search" id="lib-search" type="search" placeholder="搜尋英文或中文" value="${esc(SEARCH)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="add-word">新增</button></div>
       <div class="seg" style="margin:10px 0 0">${[['all','全部']].concat(TAGS).map(([k,t]) => `<button class="${LIB_TAG===k?'on':''}" data-act="lib-tag" data-k="${k}">${t}</button>`).join('')}</div>
-      <p class="small" id="lib-count" style="margin:10px 2px 8px"></p><div class="panel" id="lib-list"></div>`;
+      <p class="small" id="lib-count" style="margin:10px 2px 8px"></p></div><div class="panel" id="lib-list"></div>`;
   } else {
     const ids = poolIds();
     body = ids.length ? `<p class="small" style="margin:0 2px 8px">共 ${ids.length} 個字。小圓點表示目前連續答對次數。</p>
@@ -739,6 +747,7 @@ function renderLibList(){
     + (canAdd ? `<button class="item" data-act="add-word" data-en="${esc(SEARCH)}"><div class="grow t" style="color:var(--green)">＋ 新增「<span class="en">${esc(SEARCH)}</span>」</div></button>` : '');
 }
 
+const removeLabel = () => BOOK_SEL.size ? `從這本移除所選的 ${BOOK_SEL.size} 個字` : '勾選要移除的字';
 function viewBook(b){
   const s = bookStats(b), ids = b.wordIds.filter(id => W[id]);
   return `<button class="btn sm ghost" data-act="close-book" style="margin-bottom:10px">‹ 單字簿</button>
@@ -751,10 +760,10 @@ function viewBook(b){
       <button class="btn sm ghost" data-act="book-edit">${BOOK_EDIT ? '取消' : '移除單字'}</button>
       <button class="btn sm ghost" data-act="book-more">更多</button>
     </div>
-    ${BOOK_EDIT && ids.length ? `<button class="btn danger" data-act="book-remove" style="margin-bottom:12px" ${BOOK_SEL.size ? '' : 'disabled'}>從這本移除所選的 ${BOOK_SEL.size} 個字</button>` : ''}
     ${ids.length ? `<div class="panel">${ids.map(id => { const w = W[id];
       return `<button class="item" data-act="${BOOK_EDIT ? 'book-sel' : 'word'}" data-id="${id}">${BOOK_EDIT ? `<span class="check ${BOOK_SEL.has(id)?'on':''}"></span>` : ''}
-        <div class="grow"><div class="t en">${esc(w.en)}${manualTag(id)}</div><div class="d">${esc(w.pos)} ${esc(w.zh)}</div></div>${BOOK_EDIT ? '' : lvDots(id)}</button>`; }).join('')}</div>`
+        <div class="grow"><div class="t en">${esc(w.en)}${manualTag(id)}</div><div class="d">${esc(w.pos)} ${esc(w.zh)}</div></div>${BOOK_EDIT ? '' : lvDots(id)}</button>`; }).join('')}</div>
+      ${BOOK_EDIT ? `<button class="btn danger stick-bottom" data-act="book-remove" ${BOOK_SEL.size ? '' : 'disabled'}>${removeLabel()}</button>` : ''}`
       : `<div class="empty">這本還沒有單字，點「加入單字」從總庫挑選。</div>`}`;
 }
 
@@ -820,11 +829,11 @@ function openWordSheet(id){
     onRight: () => { closeSheet(); render(); }});
 }
 
-function chooseBook(title, cb){
-  openSheet({title, body: `<div class="panel">${B.map(b => `<button class="item" data-act="choose-book" data-id="${b.id}"><div class="grow t">${esc(b.name)}</div>${CHEV}</button>`).join('')}
+function chooseBook(title, cb, {onCancel = null, has = null, defName = ''} = {}){
+  openSheet({title, right:'取消', body: `<div class="panel">${B.map(b => `<button class="item" data-act="choose-book" data-id="${b.id}"><div class="grow t">${esc(b.name)}</div>${has && has(b) ? '<span class="small">已加入</span>' : CHEV}</button>`).join('')}
     <button class="item" data-act="choose-book" data-id="__new"><div class="grow t" style="color:var(--green)">＋ 新增單字簿</div></button></div>`,
-    onRight: () => { closeSheet(); render(); }});
-  chooseBook.cb = cb;
+    onRight: () => { closeSheet(); onCancel ? onCancel() : render(); }});
+  chooseBook.cb = cb; chooseBook.defName = defName;
 }
 
 function openBookPicker(b, presel){
@@ -837,18 +846,23 @@ function openBookPicker(b, presel){
       <div class="grow"><div class="t en">${esc(W[id].en)}${manualTag(id)}</div><div class="d">${esc(W[id].pos)} ${esc(W[id].zh)}</div></div></button>`).join('')
       + (canAdd ? `<button class="item" data-new="1"><div class="grow t" style="color:var(--green)">＋ 新增「<span class="en">${esc(q)}</span>」並加入這本</div></button>` : ''))
       || '<div class="item small">沒有符合的單字</div>';
-    $('#pick-n').textContent = `已選 ${sel.size} 個字`;
+    count();
   };
-  openSheet({title:`加入「${b.name}」`, right:'完成',
-    body:`<input class="search" id="pick-q" type="search" placeholder="搜尋英文或中文" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <p class="small" id="pick-n" style="margin:10px 2px 8px"></p><div class="panel" id="pick-list"></div>`,
+  let last = '';
+  const count = () => { $('#pick-n').textContent = `已選 ${sel.size} 個字` + (last ? `　剛加入：${last}` : ''); };
+  openSheet({title:`加入「${b.name}」`, right:'完成', tall:true,
+    top:`<input class="search" id="pick-q" type="search" placeholder="搜尋英文或中文" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <p class="small" id="pick-n"></p>`,
+    body:`<div class="panel" id="pick-list"></div>`,
     onRight: () => {
       b.wordIds = b.wordIds.filter(id => sel.has(id)).concat(Object.keys(W).filter(id => sel.has(id) && !b.wordIds.includes(id)));
       updateFinished(); save('books'); closeSheet(); render(); toast('已更新單字簿');
     },
     mount: el => {
       draw();
-      el.querySelector('#pick-q').addEventListener('input', e => { q = e.target.value.trim(); draw(); });
+      const qIn = el.querySelector('#pick-q'), body = el.querySelector('.sh-body');
+      qIn.addEventListener('input', e => { q = e.target.value.trim(); last = ''; draw(); body.scrollTop = 0; });
+      qIn.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); qIn.blur(); } });
       el.querySelector('#pick-list').addEventListener('click', e => {
         if(e.target.closest('.item[data-new]')){
           const keep = new Set(sel);
@@ -857,7 +871,10 @@ function openBookPicker(b, presel){
         const it = e.target.closest('.item[data-id]'); if(!it) return;
         const id = it.dataset.id; sel.has(id) ? sel.delete(id) : sel.add(id);
         it.querySelector('.check').classList.toggle('on', sel.has(id));
-        $('#pick-n').textContent = `已選 ${sel.size} 個字`;
+        last = '';
+        /* 搜尋後勾選一個字：清空搜尋欄、留在搜尋欄，直接輸入下一個字 */
+        if(q && sel.has(id)){ last = W[id].en; q = ''; qIn.value = ''; draw(); body.scrollTop = 0; qIn.focus(); }
+        else count();
       });
     }});
 }
@@ -1308,7 +1325,11 @@ const ACT = {
   'new-book': () => { const n = str(prompt('單字簿名稱')); if(!n) return; if(bookByName(n)) return toast('已有同名的單字簿'); newBook(n); save('books'); render(); },
   'book-add': () => { const b = bookById(OPEN_BOOK); if(!Object.keys(W).length) return toast('總庫還沒有單字'); openBookPicker(b); },
   'book-edit': () => { BOOK_EDIT = !BOOK_EDIT; BOOK_SEL.clear(); render(); },
-  'book-sel': el => { const id = el.dataset.id; BOOK_SEL.has(id) ? BOOK_SEL.delete(id) : BOOK_SEL.add(id); render(); },
+  'book-sel': el => {
+    const id = el.dataset.id; BOOK_SEL.has(id) ? BOOK_SEL.delete(id) : BOOK_SEL.add(id);
+    el.querySelector('.check').classList.toggle('on', BOOK_SEL.has(id));
+    const btn = $('[data-act=book-remove]'); if(btn){ btn.disabled = !BOOK_SEL.size; btn.textContent = removeLabel(); }
+  },
   'book-remove': () => { const b = bookById(OPEN_BOOK); b.wordIds = b.wordIds.filter(id => !BOOK_SEL.has(id)); BOOK_SEL.clear(); BOOK_EDIT = false; updateFinished(); save('books'); render(); toast('已移除'); },
   'book-more': () => {
     const b = bookById(OPEN_BOOK);
@@ -1325,11 +1346,16 @@ const ACT = {
     if(only.length && confirm(`其中有 ${only.length} 個字不屬於其他單字簿。要一併從總庫刪除這些字和它們的進度嗎？\n（選「取消」則保留在總庫）`)) only.forEach(deleteWord);
     OPEN_BOOK = null; saveAll(); render(); toast('已刪除單字簿');
   },
-  'word-to-book': el => { const id = el.dataset.id; chooseBook('加入單字簿', b => { if(!b.wordIds.includes(id)) b.wordIds.push(id); updateFinished(); save('books'); toast(`已加入「${b.name}」`); }); },
+  'word-to-book': el => {
+    const id = el.dataset.id, back = () => { render(); openWordSheet(id); };
+    /* 加入後回到單字詳情，可看到更新後的所屬單字簿 */
+    chooseBook('加入單字簿', b => { const had = b.wordIds.includes(id); if(!had) b.wordIds.push(id); updateFinished(); save('books'); toast(had ? `已在「${b.name}」裡` : `已加入「${b.name}」`); setTimeout(back, 0); },
+      {onCancel: back, has: b => b.wordIds.includes(id)});
+  },
   'word-delete': el => { const id = el.dataset.id; if(!confirm(`確定要從總庫刪除「${W[id].en}」嗎？學習進度也會一併刪除。`)) return; deleteWord(id); saveAll(); closeSheet(); render(); toast('已刪除'); },
-  'pool-to-book': () => { const ids = poolIds(); chooseBook('收進單字簿', b => { let n = 0; ids.forEach(id => { if(!b.wordIds.includes(id)){ b.wordIds.push(id); n++; } }); updateFinished(); save('books'); toast(`已將 ${n} 個字加入「${b.name}」`); }); },
+  'pool-to-book': () => { const ids = poolIds(); chooseBook('收進單字簿', b => { let n = 0; ids.forEach(id => { if(!b.wordIds.includes(id)){ b.wordIds.push(id); n++; } }); updateFinished(); save('books'); toast(`已將 ${n} 個字加入「${b.name}」`); }, {defName:'我的易錯字'}); },
   'choose-book': el => {
-    let b; if(el.dataset.id === '__new'){ const n = str(prompt('新單字簿名稱', '我的易錯字')); if(!n) return; b = bookByName(n) || newBook(n); } else b = bookById(el.dataset.id);
+    let b; if(el.dataset.id === '__new'){ const n = str(prompt('新單字簿名稱', chooseBook.defName || '')); if(!n) return; b = bookByName(n) || newBook(n); } else b = bookById(el.dataset.id);
     const cb = chooseBook.cb; closeSheet(); if(cb) cb(b); render();
   },
   'sheet-right': () => { if(sheetDone) sheetDone(); else closeSheet(); },
@@ -1385,7 +1411,12 @@ document.addEventListener('click', e => {
   const f = ACT[el.dataset.act]; if(f) f(el, e);
 });
 document.addEventListener('input', e => {
-  if(e.target.id === 'lib-search'){ SEARCH = e.target.value.trim(); renderLibList(); }
+  if(e.target.id === 'lib-search'){
+    SEARCH = e.target.value.trim(); renderLibList();
+    /* 清單變短時，捲回清單開頭，搜尋列固定在上方 */
+    const tabs = $('.stick-top') && $('.stick-top').previousElementSibling;
+    if(tabs){ const y0 = tabs.offsetTop + tabs.offsetHeight; if(window.scrollY > y0) window.scrollTo(0, y0); }
+  }
   if(e.target.id === 'rate'){ S.rate = +e.target.value; $('#rate-v').textContent = S.rate.toFixed(2); save('settings'); }
 });
 $('#s-body').addEventListener('click', e => {
