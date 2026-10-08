@@ -240,7 +240,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false};
@@ -710,43 +710,90 @@ function openScopeSheet(){
 /* ========== 練習流程 ========== */
 let SES = null;
 
-function MasteryPhase(batch, scope){
+const STAGE_NAME = ['暖身','英選中','中選英','字母重組','拼寫'];
+function chunkEven(a, max){
+  const n = Math.ceil(a.length / max), out = []; let i = 0;
+  for(let k = 0; k < n; k++){ const sz = Math.ceil((a.length - i) / (n - k)); out.push(a.slice(i, i + sz)); i += sz; }
+  return out;
+}
+/* 綜合精通：同一組字逐關進行（暖身 → 英選中 → 中選英 → 配對 → 字母重組 → 拼寫） */
+function MasteryPhase(batch, scope, opts = {}){
   return {
-    label:'學新字', batch, scope, last:null, sinceMatch:0,
+    kind:'mastery', label:'綜合精通', batch, scope, group: opts.group || 1,
+    carry: (opts.carry || []).filter(id => W[id]), carryAt:[3, 10], asked:0,
+    stage:-1, queue:[], deferred:[], stageTotal:0, stageDone:0, stageErr:{}, errs:{}, matchQ:[], matched:false, last:null,
+    startStage(){
+      for(;;){
+        const defIds = new Set(this.deferred.flat().map(x => x.id));
+        const pend = this.batch.filter(id => W[id] && lvl(id) < 5 && !defIds.has(id));
+        if(!pend.length){
+          if(!this.deferred.length) return false;
+          this.queue = this.deferred.flat(); this.deferred = []; this.stageTotal = 0; return true;
+        }
+        const st = Math.min(...pend.map(lvl));
+        const ids = shuffle(pend.filter(id => lvl(id) === st));
+        if(st === 0 && S.skipWarmup){
+          ids.forEach(id => { const p = prog(id); if(!p.learnedAt){ p.learnedAt = Date.now(); logDay().nw++; SES.newL++; } p.level = 1; });
+          save('progress','log'); continue;
+        }
+        if(st >= 3 && !this.matched){
+          this.matched = true;
+          const m = this.batch.filter(id => W[id]);
+          if(m.length >= 3){ this.matchQ = chunkEven(shuffle(m.slice()), 5); return true; }
+        }
+        this.stage = st; this.stageTotal = ids.length; this.stageDone = 0;
+        this.queue = ids.map(id => ({id, type: TYPE_BY_LV[st]}));
+        if(this.queue.length > 1 && this.queue[0].id === this.last) this.queue.push(this.queue.shift());
+        let pos = 2;
+        this.deferred.forEach(g => { g.forEach((it, k) => { const at = Math.min(pos + k*3, this.queue.length); this.queue.splice(at, 0, it); }); pos += 1; });
+        this.deferred = [];
+        return true;
+      }
+    },
     next(){
-      const pending = this.batch.filter(id => W[id] && lvl(id) < 5);
-      if(!pending.length) return null;
-      this.sinceMatch++;
-      const matchable = this.batch.filter(id => W[id] && lvl(id) >= 2 && lvl(id) < 5);
-      if(this.sinceMatch >= 7 && matchable.length >= 3){ this.sinceMatch = 0; return {type:'match', ids: shuffle(matchable.slice()).slice(0,5), scope:this.scope}; }
-      let cand = pending.filter(id => id !== this.last); if(!cand.length) cand = pending;
-      const id = pick(cand); this.last = id;
-      return {type: lvl(id) === 0 && S.skipWarmup ? 'en2zh' : TYPE_BY_LV[lvl(id)], id, scope: this.scope};
+      if(this.carry.length && this.carryAt.length && this.asked >= this.carryAt[0]){
+        this.carryAt.shift(); const id = this.carry.shift();
+        this.asked++; this.label = '前一組複習';
+        return {type: pick(['zh2en','spell']), id, carry:true, scope:this.scope};
+      }
+      while(!this.matchQ.length && !this.queue.length){ if(!this.startStage()) return null; }
+      this.asked++;
+      if(this.matchQ.length){ this.label = `第 ${this.group} 組・配對`; return {type:'match', ids:this.matchQ.shift(), scope:this.scope}; }
+      const it = this.queue.shift(); this.last = it.id;
+      this.label = `第 ${this.group} 組・${it.remedial ? '再看一次' : STAGE_NAME[TYPE_BY_LV.indexOf(it.type)]}`;
+      return {type: it.type, id: it.id, scope: this.scope, remedial: !!it.remedial};
     },
     onResult(q, ok){
       const p = prog(q.id);
       if(q.type === 'card'){
         if(!p.learnedAt){ p.learnedAt = Date.now(); logDay().nw++; SES.newL++; }
-        p.level = Math.max(p.level, 1); p.lastSeen = Date.now(); return '';
+        if(!q.remedial){ p.level = Math.max(p.level, 1); this.stageDone++; }
+        p.lastSeen = Date.now(); return '';
       }
-      const fresh = p.level === 0;
-      if(fresh){
-        if(!p.learnedAt){ p.learnedAt = Date.now(); logDay().nw++; SES.newL++; }
-        p.level = 1;
-      }
+      if(q.carry) return ok ? '前一組的字，記得很牢' : '已加入錯字池';
+      const cur = q.type === TYPE_BY_LV[this.stage] && this.stageTotal > 0;
       if(ok){
-        p.level = Math.min(5, p.level + 1);
+        if(cur) this.stageDone++;
+        p.level = Math.min(5, Math.max(p.level, TYPE_BY_LV.indexOf(q.type) + 1));
         if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; SES.mastered++; return '精通！明天會安排第一次複習'; }
         return `升到 Lv ${p.level} ${LV_NAME[p.level]}`;
       }
-      p.level = Math.max(0, p.level - 1);
-      return fresh ? '已加入錯字池' : `降回 Lv ${p.level}，已加入錯字池`;
+      this.errs[q.id] = (this.errs[q.id] || 0) + 1;
+      const ek = q.id + '|' + q.type, n = this.stageErr[ek] = (this.stageErr[ek] || 0) + 1;
+      const Q = this.queue, item = {id:q.id, type:q.type};
+      const group = n >= 2 ? [{id:q.id, type:'card', remedial:true}, item] : [item];
+      if(Q.filter(x => x.id !== q.id).length >= 2){
+        if(group.length === 2){ Q.splice(1, 0, group[0]); Q.splice(Math.min(4, Q.length), 0, item); }
+        else Q.splice(2, 0, item);
+      } else this.deferred.push(group);
+      return n >= 2 ? '稍後重看單字卡再考一次' : '稍後再考一次，已加入錯字池';
     },
-    onMatchWrong(id){ const p = prog(id); p.level = Math.max(0, Math.min(p.level, 4) - 1); },
+    onMatchWrong(id){ this.errs[id] = (this.errs[id] || 0) + 1; },
+    carryOut(){ return Object.keys(this.errs).filter(id => W[id]).sort((a,b) => this.errs[b] - this.errs[a]).slice(0, 2); },
     progress(){
-      const n = this.batch.length, done = this.batch.filter(id => lvl(id) >= 5).length;
-      const sum = this.batch.reduce((a,id) => a + Math.min(5, lvl(id)), 0);
-      return {text:`${done} / ${n} 字精通`, ratio: n ? sum/(5*n) : 1};
+      const n = this.batch.length, sum = this.batch.reduce((a,id) => a + Math.min(5, lvl(id)), 0);
+      const q = SES.q, plain = q && !q.carry && q.type === TYPE_BY_LV[this.stage] && this.stageTotal > 0;
+      return {text: plain ? `${Math.min(this.stageDone + 1, this.stageTotal)} / ${this.stageTotal}` : '', ratio: n ? sum/(5*n) : 1};
     }
   };
 }
@@ -814,14 +861,14 @@ function renderQ(q){
   setHeader();
   const body = $('#s-body'), foot = $('#s-foot');
   body.scrollTop = 0; foot.innerHTML = '';
-  const isM = q.phase.label === '學新字';
+  const isM = q.phase.kind === 'mastery' && !q.carry;
   if(q.type === 'match') return renderMatch(q);
   const w = W[q.id];
   const head = isM ? stampsHTML(q.id) : '';
 
   if(q.type === 'card'){
     body.innerHTML = head + `<div class="fb" style="margin-top:6px">${wordDetail(w)}</div>`;
-    foot.innerHTML = `<button class="btn" data-act="card-next">記住了，下一個</button>`;
+    foot.innerHTML = `<button class="btn" data-act="card-next">${q.remedial ? '記住了，再試一次' : '記住了，下一個'}</button>`;
     autoSpeak(w.en); return;
   }
   if(q.type === 'en2zh' || q.type === 'zh2en'){
@@ -938,12 +985,12 @@ function endSession(){
   const s = SES; s.ended = true;
   $('#s-label').textContent = '完成'; $('#s-count').textContent = ''; $('#s-bar').style.width = '100%';
   const acc = s.ans ? Math.round(s.cor/s.ans*100) : 0;
-  $('#s-body').innerHTML = `<div class="summary"><div class="big">${s.ans ? acc + '%' : '✓'}</div><p class="sub" style="margin-top:8px">${s.ans ? '本次正確率' : '這一輪完成了'}</p></div>
+  $('#s-body').innerHTML = `<div class="summary"><div class="big">${s.ans ? acc + '%' : '✓'}</div><p class="sub" style="margin-top:8px">${s.opts.group ? `第 ${s.opts.group} 組完成，` : ''}${s.ans ? '本次正確率' : '這一輪完成了'}</p></div>
     <div class="sumgrid">
       <div><b>${s.ans}</b><span>作答題數</span></div><div><b>${s.newL}</b><span>新學單字</span></div>
       <div><b>${s.mastered}</b><span>升到精通</span></div><div><b>${s.poolOut}</b><span>移出錯字池</span></div>
     </div>`;
-  $('#s-foot').innerHTML = s.opts.again ? `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="again">再學一輪</button></div>`
+  $('#s-foot').innerHTML = s.opts.again ? `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="again">繼續下一組</button></div>`
     : `<button class="btn" data-act="quit-now">回到主畫面</button>`;
 }
 
@@ -957,12 +1004,13 @@ function startToday(){
   if(!due.length && !pool.length && !batch.length){ toast(cap ? '這個範圍的單字都學完了' : '今天的訓練都完成了'); return; }
   startSession([due.length && ReviewPhase(shuffle(due)), pool.length && PoolPhase(shuffle(pool)), batch.length && MasteryPhase(batch, scope)]);
 }
-function startMastery(bookIds){
+function startMastery(bookIds, group = 1, carry = []){
   const scope = scopeIds(bookIds);
   if(!scope.length){ toast('這個範圍沒有單字'); return; }
   const batch = buildBatch(scope, S.batchSize, Infinity);
   if(!batch.length){ toast('這個範圍的單字都已精通'); return; }
-  startSession([MasteryPhase(batch, scope)], {again: () => startMastery(bookIds)});
+  const ph = MasteryPhase(batch, scope, {group, carry});
+  startSession([ph], {group, again: () => startMastery(bookIds, group + 1, ph.carryOut())});
 }
 
 /* ========== 事件 ========== */
