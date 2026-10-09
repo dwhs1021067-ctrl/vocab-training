@@ -294,7 +294,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
@@ -1393,12 +1393,12 @@ function tapMatch(el){
   const side = el.dataset.side;
   document.querySelectorAll(`.mt[data-side="${side}"]`).forEach(b => b.classList.remove('sel'));
   el.classList.add('sel');
-  if(side === 'L'){ q.selL = el; autoSpeak(W[el.dataset.id].en); } else q.selR = el;
+  /* 配對只在點英文時唸（自動朗讀或答對發音任一開啟即唸），配對成功時不再重複 */
+  if(side === 'L'){ q.selL = el; if(S.autoSpeak || S.speakOnCorrect) speak(W[el.dataset.id].en); } else q.selR = el;
   if(!(q.selL && q.selR)) return;
   const a = q.selL, b = q.selR; q.selL = q.selR = null;
   if(a.dataset.id === b.dataset.id){
     a.classList.add('done'); b.classList.add('done'); q.left--;
-    q.lastSpeech = speakCorrect(W[a.dataset.id].en);
     if(!q.left) finishMatch(q);
   } else {
     q.mistakes.add(a.dataset.id); q.mistakes.add(b.dataset.id);
@@ -1417,7 +1417,7 @@ function finishMatch(q){
   const wrong = q.ids.filter(id => q.mistakes.has(id));
   $('#s-foot').innerHTML = `<button class="vbar ${wrong.length?'no':'ok'}" data-act="next"><span>${wrong.length ? `配錯 ${wrong.length} 個字` : '全部配對正確'}</span><small>${wrong.length ? '配錯的字已加入錯字池' : ''}</small></button>`;
   setHeader();
-  scheduleNext(wrong.length ? 1800 : 900, q.lastSpeech || null);
+  scheduleNext(wrong.length ? 1800 : 900);
 }
 
 function endSession(){
