@@ -294,10 +294,10 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
-const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false};
+const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
 const INTERVALS = [1,2,4,7,15,30];
@@ -352,7 +352,7 @@ function normalizeAll(){
   S = Object.assign({}, DEF_SETTINGS, S && typeof S === 'object' ? S : {});
   if(!Array.isArray(S.trainBooks)) S.trainBooks = [];
   S.dailyNew = clampInt(S.dailyNew, 0, 50, 10); S.batchSize = clampInt(S.batchSize, 5, 15, 8); S.linkCount = clampInt(S.linkCount, 5, 100, 20);
-  S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false; S.skipWarmup = S.skipWarmup === true;
+  S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false; S.speakOnCorrect = S.speakOnCorrect !== false; S.skipWarmup = S.skipWarmup === true;
   if(!['auto','light','dark'].includes(S.theme)) S.theme = 'auto';
   S.drawCount = Math.min(80, Math.max(16, Math.round((+S.drawCount || 40) / 8) * 8)); S.tagMigrated = S.tagMigrated === true;
   if(!L || typeof L !== 'object') L = {};
@@ -655,14 +655,21 @@ function pickVoice(){
   VOICE = vs.find(v => /Samantha|Ava|Allison|Susan/i.test(v.name)) || vs.find(v => v.localService) || vs[0] || null;
 }
 if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function speak(text){
-  if(!('speechSynthesis' in window) || !text) return;
-  speechSynthesis.cancel();
+function speak(text, onEnd){
+  if(!('speechSynthesis' in window) || !text){ if(onEnd) onEnd(); return; }
+  try{ speechSynthesis.cancel(); }catch(e){}
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US'; u.rate = S.rate || 0.9; if(VOICE) u.voice = VOICE;
-  speechSynthesis.speak(u);
+  if(onEnd){ u.onend = onEnd; u.onerror = onEnd; }
+  try{ speechSynthesis.speak(u); }catch(e){ if(onEnd) onEnd(); }
 }
 const autoSpeak = t => { if(S.autoSpeak) speak(t); };
+/* 答對時唸出單字；回傳「播完」的 Promise（最多等 3 秒），讓跳題等發音結束 */
+function speakCorrect(text){
+  if(!S.speakOnCorrect || !text) return null;
+  return new Promise(res => { let done = false; const fin = () => { if(!done){ done = true; res(); } };
+    speak(text, fin); setTimeout(fin, 3000); });
+}
 
 /* ========== 共用畫面片段 ========== */
 function lvDots(id){
@@ -801,7 +808,8 @@ function viewSettings(){
     </div>
     <h2>發音</h2>
     <div class="panel">
-      <div class="lbl"><div class="grow">自動朗讀</div>${sw('autoSpeak', S.autoSpeak)}</div>
+      <div class="lbl"><div class="grow">自動朗讀<div class="small">出題時與答錯時唸出單字</div></div>${sw('autoSpeak', S.autoSpeak)}</div>
+      <div class="lbl"><div class="grow">答對時播放發音<div class="small">每次答對都唸一次，播完再跳下一題</div></div>${sw('speakOnCorrect', S.speakOnCorrect)}</div>
       <div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>語速</span><span class="small" id="rate-v">${(+S.rate).toFixed(2)}</span></div>
         <div class="row" style="margin-top:6px"><input type="range" id="rate" min="0.5" max="1.2" step="0.05" value="${S.rate}">${spkBtn('The treaty was ratified by the Legislative Yuan.', true)}</div></div>
     </div>
@@ -1350,12 +1358,17 @@ function showFeedback(q, ok, note){
   $('#s-foot').innerHTML = `<button class="vbar ${ok?'ok':'no'}" data-act="next"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(ans)}</span>`}</span><small>${esc(note)}</small></button>`;
   setHeader();
   if(!ok && q.type !== 'en2zh') autoSpeak(w.en);
-  scheduleNext(ok ? 900 : 2200);
+  scheduleNext(ok ? 900 : 2200, ok ? speakCorrect(w.en) : null);
 }
-function scheduleNext(ms){
+function scheduleNext(ms, wait = null){
   const s = SES, q = s.q; q.doneAt = Date.now();
   clearTimeout(s.timer);
-  s.timer = setTimeout(() => { if(SES === s && s.q === q) nextQ(); }, ms);
+  const go = () => { if(SES === s && s.q === q && !s.ended) nextQ(); };
+  if(!wait){ s.timer = setTimeout(go, ms); return; }
+  /* 至少等 ms 毫秒，且等發音播完（再停 0.15 秒） */
+  let a = false, b = false; const tryGo = () => { if(a && b) go(); };
+  s.timer = setTimeout(() => { a = true; tryGo(); }, ms);
+  wait.then(() => setTimeout(() => { b = true; tryGo(); }, 150));
 }
 function checkSpell(){
   const q = SES && SES.q; if(!q || q.done || q.type !== 'spell') return;
@@ -1385,6 +1398,7 @@ function tapMatch(el){
   const a = q.selL, b = q.selR; q.selL = q.selR = null;
   if(a.dataset.id === b.dataset.id){
     a.classList.add('done'); b.classList.add('done'); q.left--;
+    q.lastSpeech = speakCorrect(W[a.dataset.id].en);
     if(!q.left) finishMatch(q);
   } else {
     q.mistakes.add(a.dataset.id); q.mistakes.add(b.dataset.id);
@@ -1403,7 +1417,7 @@ function finishMatch(q){
   const wrong = q.ids.filter(id => q.mistakes.has(id));
   $('#s-foot').innerHTML = `<button class="vbar ${wrong.length?'no':'ok'}" data-act="next"><span>${wrong.length ? `配錯 ${wrong.length} 個字` : '全部配對正確'}</span><small>${wrong.length ? '配錯的字已加入錯字池' : ''}</small></button>`;
   setHeader();
-  scheduleNext(wrong.length ? 1800 : 900);
+  scheduleNext(wrong.length ? 1800 : 900, q.lastSpeech || null);
 }
 
 function endSession(){
