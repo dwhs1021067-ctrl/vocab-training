@@ -35,6 +35,8 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
 body{overscroll-behavior-y:none}
+/* 練習畫面或底部面板開啟時固定背景頁面，避免 iPhone 上滑動時連背景一起捲動（v1.3.0） */
+body.locked{position:fixed;left:0;right:0;overflow:hidden}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
 input,textarea,select{font:inherit;font-size:16px;color:var(--ink)}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -149,7 +151,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .spk.sm svg{width:16px;height:16px}
 
 /* 底部面板 */
-#sheet-wrap{position:fixed;inset:0;z-index:40;background:rgba(20,28,24,.28);display:flex;align-items:flex-end;justify-content:center}
+#sheet-wrap{position:fixed;inset:0;z-index:40;background:rgba(20,28,24,.28);display:flex;align-items:flex-end;justify-content:center;overscroll-behavior:contain}
 #sheet{background:var(--paper);width:100%;max-width:640px;max-height:calc(100% - var(--st) - 20px);border-radius:20px 20px 0 0;display:flex;flex-direction:column;
   animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
@@ -167,14 +169,14 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .sh-foot{padding:10px 16px calc(var(--sb) + 12px);border-top:1px solid var(--line)}
 
 /* 練習畫面 */
-#session{position:fixed;inset:0;background:var(--paper);z-index:30;display:flex;flex-direction:column}
+#session{position:fixed;inset:0;background:var(--paper);z-index:30;display:flex;flex-direction:column;overscroll-behavior:contain}
 #kb-keep{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0;font-size:16px;pointer-events:none}
 .s-top{padding:calc(var(--st) + 8px) 14px 8px;display:flex;align-items:center;gap:12px}
 .s-top .x{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--muted);flex:none}
 .s-top .grow{flex:1}
 .s-top .bar{height:8px}
 .s-top .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:5px}
-#s-body{flex:1;overflow-y:auto;padding:10px 18px 20px;-webkit-overflow-scrolling:touch;max-width:640px;width:100%;margin:0 auto}
+#s-body{flex:1;overflow-y:auto;padding:10px 18px 20px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;max-width:640px;width:100%;margin:0 auto}
 #s-foot{padding:10px 18px calc(var(--sb) + 14px);max-width:640px;width:100%;margin:0 auto}
 #s-foot:empty{display:none}
 .stamps{display:flex;gap:5px;align-items:center;margin-bottom:14px}
@@ -232,6 +234,16 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .vbar.no{background:var(--red-soft);color:var(--red)}
 .vbar small{font-weight:500;font-size:13px;color:var(--muted);text-align:right}
 .vbar .ans{display:block;font-family:var(--serif);font-size:19px;font-weight:600;color:var(--ink);margin-top:1px}
+/* 結果列旁的「詳解」按鈕（v1.3.0） */
+.fbrow{display:flex;gap:8px;align-items:stretch}
+.fbrow .vbar{flex:1;min-width:0}
+.why{flex:none;min-width:64px;border-radius:14px;background:var(--surface);border:1px solid var(--line);color:var(--green);font-weight:600;font-size:15px}
+/* 例句克漏字（v1.3.0） */
+.cloze{font-family:var(--serif);font-size:21px;line-height:1.7;padding:18px 2px 6px}
+.cloze .blank{display:inline-block;min-width:4.2em;border-bottom:2.5px solid var(--green);text-align:center;line-height:1.2;margin:0 2px}
+.cloze .blank.good{color:var(--ok);border-color:var(--ok);font-weight:600}
+.cloze .blank.bad{color:var(--red);border-color:var(--red);font-weight:600}
+.cloze-zh{color:var(--muted);font-size:15px;margin:6px 2px 4px;min-height:1.5em}
 .stat-line{display:flex;gap:18px;margin:14px 0 18px;color:var(--muted);font-size:14px}
 .stat-line b{font-family:var(--serif);font-size:20px;color:var(--ink);margin-right:3px}
 #toast{position:fixed;left:50%;bottom:calc(var(--sb) + 96px);transform:translateX(-50%);background:var(--ink);color:var(--paper);box-shadow:0 4px 14px rgba(0,0,0,.15);
@@ -294,7 +306,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.2.2';
+const APP_VERSION = '1.3.0';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
@@ -304,6 +316,10 @@ const INTERVALS = [1,2,4,7,15,30];
 const LV_NAME = ['暖身','視覺辨識','雙向連接','結構重組','主動輸出','精通'];
 const TYPE_BY_LV = ['card','en2zh','zh2en','letters','spell'];
 const POOL_CAP = 20;
+const CLOZE_COUNT = 20;          /* 例句克漏字每次題數（v1.3.0） */
+const LEECH_AT = 3;              /* 遺忘曲線複習累計答錯幾次收進「頑固字」（v1.3.0） */
+const LEECH_BOOK = '頑固字';
+const REVIEW_BACK = 2;           /* 複習答錯時間隔退回幾階（v1.3.0） */
 const ICON_SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
 const CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>';
 
@@ -328,13 +344,21 @@ const clampInt = (v, lo, hi, d) => { v = parseInt(v, 10); return isNaN(v) ? d : 
 
 function normProg(p){
   p = p && typeof p === 'object' ? p : {};
+  const level = clampInt(p.level, 0, 5, 0);
+  const srs = p.srs && p.srs.due ? {stage: clampInt(p.srs.stage, 0, INTERVALS.length-1, 0), due: String(p.srs.due)} : null;
+  /* confirmedAt：通過第一次遺忘曲線複習的時間，之後才算「精通」（v1.3.0）。
+     舊資料中 stage ≥ 1 的字代表已答對過複習，視為已確認。 */
+  let confirmedAt = p.confirmedAt || null;
+  if(!confirmedAt && level >= 5 && srs && srs.stage >= 1) confirmedAt = +p.lastSeen || Date.now();
   return {
-    level: clampInt(p.level, 0, 5, 0),
+    level,
     typeStats: p.typeStats && typeof p.typeStats === 'object' ? p.typeStats : {},
     wrongTotal: +p.wrongTotal || 0,
     lastSeen: +p.lastSeen || 0,
-    srs: p.srs && p.srs.due ? {stage: clampInt(p.srs.stage, 0, INTERVALS.length-1, 0), due: String(p.srs.due)} : null,
-    learnedAt: p.learnedAt || null
+    srs,
+    learnedAt: p.learnedAt || null,
+    confirmedAt: level >= 5 ? confirmedAt : null,
+    revWrong: +p.revWrong || 0
   };
 }
 function normBook(b){
@@ -405,17 +429,30 @@ function normAns(s){ return str(s).toLowerCase().replace(/[’‘`]/g,"'").repla
 let toastTimer;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400); }
 
+/* 固定背景頁面（v1.3.0）：iPhone 的 Safari 不理會 overflow:hidden，練習畫面或面板開啟時把 body 固定住，關閉時回到原本位置 */
+const LOCK = {session:false, sheet:false, y:0};
+function setLock(kind, on){
+  const was = LOCK.session || LOCK.sheet;
+  LOCK[kind] = on;
+  const now = LOCK.session || LOCK.sheet, b = document.body;
+  if(now && !was){ LOCK.y = window.scrollY || 0; b.style.top = -LOCK.y + 'px'; b.classList.add('locked'); }
+  else if(!now && was){ b.classList.remove('locked'); b.style.top = ''; window.scrollTo(0, LOCK.y); }
+}
+
 /* ========== 資料操作 ========== */
 const prog = id => P[id] || (P[id] = normProg());
 const lvl = id => P[id] ? P[id].level : 0;
+/* 精通＝完成五關且通過第一次複習；完成五關但還沒通過第一次複習為「待確認」（v1.3.0） */
+const isMastered = id => !!(P[id] && P[id].level >= 5 && P[id].confirmedAt);
+const isPending = id => !!(P[id] && P[id].level >= 5 && !P[id].confirmedAt);
 const bookById = id => B.find(b => b.id === id);
 const bookByName = n => B.find(b => b.name === n);
 function newBook(name){ const b = normBook({id:uid('b'), name}); B.push(b); return b; }
 function bookStats(b){
   const ids = b.wordIds.filter(id => W[id]);
-  let mastered = 0, learned = 0;
-  ids.forEach(id => { const l = lvl(id); if(l >= 5) mastered++; if(l >= 1 || (P[id] && P[id].learnedAt)) learned++; });
-  return {total: ids.length, mastered, learned};
+  let mastered = 0, learned = 0, pending = 0;
+  ids.forEach(id => { const l = lvl(id); if(isMastered(id)) mastered++; else if(l >= 5) pending++; if(l >= 1 || (P[id] && P[id].learnedAt)) learned++; });
+  return {total: ids.length, mastered, pending, learned};
 }
 function updateFinished(){
   B.forEach(b => { const s = bookStats(b); if(s.total && s.mastered === s.total){ if(!b.finishedAt) b.finishedAt = Date.now(); } else b.finishedAt = null; });
@@ -469,16 +506,45 @@ function buildBatch(scope, size, newCap){
   for(const id of scope){ if(room <= 0) break; const p = P[id]; if(!p || (p.level === 0 && !p.learnedAt)){ batch.push(id); room--; } }
   return batch;
 }
-function distractors(id, n, scope){
+/* 形近字分數（v1.3.0）：同字首、同字尾或拼法相近的字分數較高，用來當英文選項的干擾項 */
+function editDist(a, b){
+  if(Math.abs(a.length - b.length) > 3) return 9;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for(let i = 1; i <= a.length; i++){
+    const cur = [i];
+    for(let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function simScore(a, b){
+  a = a.toLowerCase(); b = b.toLowerCase();
+  if(a === b || a.includes(' ') !== b.includes(' ')) return 0;
+  let pre = 0; while(pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+  let suf = 0; while(suf < a.length - pre && suf < b.length - pre && a[a.length-1-suf] === b[b.length-1-suf]) suf++;
+  /* 一個字完全包含在另一個字的開頭（如 diplomat／diplomatic）屬衍生字，不算形近 */
+  if(pre >= Math.min(a.length, b.length)) return 0;
+  const d = editDist(a, b), len = Math.max(a.length, b.length);
+  let s = 0;
+  if(pre >= 3) s += pre;
+  if(suf >= 3) s += suf - 1;
+  if(d <= 2 && len >= 5) s += 4 - d;
+  return s;
+}
+/* similar 為 true 時（選項是英文的題型），先放最多 2 個形近字，其餘照原本規則抽取 */
+function distractors(id, n, scope, similar = false){
   const w = W[id], usedEn = new Set([normAns(w.en)]), usedZh = new Set([w.zh]), out = [];
   const all = Object.keys(W);
+  const take = x => { const o = W[x]; if(!o || x === id || usedEn.has(normAns(o.en)) || usedZh.has(o.zh)) return false;
+    usedEn.add(normAns(o.en)); usedZh.add(o.zh); out.push(x); return true; };
+  if(similar){
+    const pool = w.pos ? all.filter(x => W[x].pos === w.pos) : all;
+    const ranked = pool.map(x => [x, simScore(w.en, W[x].en)]).filter(r => r[1] >= 3).sort((a, b) => b[1] - a[1]).slice(0, 6).map(r => r[0]);
+    for(const x of shuffle(ranked)){ if(out.length >= Math.min(2, n)) break; take(x); }
+  }
   const tiers = w.pos ? [scope.filter(x => W[x] && W[x].pos === w.pos), scope, all.filter(x => W[x].pos === w.pos), all] : [scope, all];
   for(const t of tiers){
-    for(const x of shuffle(t.slice())){
-      if(out.length >= n) break;
-      const o = W[x]; if(!o || x === id || usedEn.has(normAns(o.en)) || usedZh.has(o.zh)) continue;
-      usedEn.add(normAns(o.en)); usedZh.add(o.zh); out.push(x);
-    }
+    for(const x of shuffle(t.slice())){ if(out.length >= n) break; take(x); }
     if(out.length >= n) break;
   }
   return out;
@@ -674,7 +740,7 @@ function speakCorrect(text){
 /* ========== 共用畫面片段 ========== */
 function lvDots(id){
   const l = lvl(id);
-  return `<span class="lv ${l>=5?'m':''}" aria-label="Lv ${l}">${[1,2,3,4,5].map(i => `<i class="${i<=l?'f':''}"></i>`).join('')}</span>`;
+  return `<span class="lv ${isMastered(id)?'m':''}" aria-label="Lv ${l}${isPending(id) ? '（待確認）' : ''}">${[1,2,3,4,5].map(i => `<i class="${i<=l?'f':''}"></i>`).join('')}</span>`;
 }
 function spkBtn(text, sm){ return `<button class="spk ${sm?'sm':''}" data-act="speak" data-text="${esc(text)}" aria-label="播放發音">${ICON_SPK}</button>`; }
 function morphHTML(w){
@@ -691,6 +757,7 @@ function wordDetail(w){
     ${w.example ? `<div class="ex"><div class="row" style="align-items:flex-start"><div class="e" style="flex:1">${esc(w.example)}</div>${spkBtn(w.example, true)}</div>${w.exampleZh ? `<div class="z">${esc(w.exampleZh)}</div>` : ''}</div>` : ''}
   </div>`;
 }
+const levelText = id => isPending(id) ? 'Lv 5 待確認（第一次複習答對後算精通）' : `Lv ${lvl(id)} ${LV_NAME[lvl(id)]}`;
 
 /* ========== 底部面板 ========== */
 let sheetDone = null;
@@ -700,9 +767,10 @@ function openSheet({title, body, foot = '', right = '關閉', onRight = null, mo
     ${top ? `<div class="sh-top">${top}</div>` : ''}<div class="sh-body">${body}</div>${foot ? `<div class="sh-foot">${foot}</div>` : ''}`;
   sheetDone = onRight;
   $('#sheet-wrap').hidden = false;
+  setLock('sheet', true);
   if(mount) mount($('#sheet'));
 }
-function closeSheet(){ $('#sheet-wrap').hidden = true; $('#sheet').innerHTML = ''; sheetDone = null; }
+function closeSheet(){ $('#sheet-wrap').hidden = true; $('#sheet').innerHTML = ''; sheetDone = null; setLock('sheet', false); }
 /* 點面板外的背景：與右上角按鈕相同（關閉、取消或完成），避免挑好的字沒有存到 */
 $('#sheet-wrap').addEventListener('click', e => { if(e.target.id === 'sheet-wrap'){ if(sheetDone) sheetDone(); else { closeSheet(); render(); } } });
 
@@ -723,7 +791,7 @@ function viewHome(){
   if(!n) return `<p class="sub">${dateStr}</p><h1>練習</h1>
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
     <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>`;
-  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays();
+  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), cz = clozeIds().length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const newLeft = Math.max(0, S.dailyNew - (tl.nw || 0));
   const acc = tl.n ? Math.round(tl.c / tl.n * 100) + '%' : '—';
@@ -734,9 +802,11 @@ function viewHome(){
     <button class="mode" data-act="pick-mastery">
       <div class="t">綜合精通<span class="n">${unmastered}</span></div><div class="d">尚未精通的字從暖身練到拼寫，升到 Lv 5。${S.skipWarmup ? '目前設定為跳過暖身。' : ''}</div></button>
     <button class="mode" data-act="start-review" ${due ? '' : 'disabled'}>
-      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">已精通的字在第 1、2、4、7、15、30 天後再複習。</div></button>
+      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">完成五關的字在第 1、2、4、7、15、30 天後再複習，第一次複習答對才算精通。</div></button>
     <button class="mode" data-act="start-pool" ${pool ? '' : 'disabled'}>
       <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
+    <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
+      <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通單字的例句挖空，選出正確的字，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句練習。'}</div></button>
 `;
 }
 
@@ -748,7 +818,7 @@ function viewWords(){
   if(WTAB === 'books'){
     body = B.length ? `<div class="panel">${B.map(b => { const s = bookStats(b); const r = s.total ? s.mastered/s.total*100 : 0;
         return `<button class="item" data-act="open-book" data-id="${b.id}"><div class="grow"><div class="t">${esc(b.name)}</div>
-          <div class="d">已精通 ${s.mastered} / ${s.total}${b.finishedAt ? '　全部精通' : ''}</div><div class="bar" style="margin-top:7px"><i style="width:${r}%"></i></div></div>${CHEV}</button>`; }).join('')}</div>`
+          <div class="d">已精通 ${s.mastered} / ${s.total}${s.pending ? `，待確認 ${s.pending}` : ''}${b.finishedAt ? '　全部精通' : ''}</div><div class="bar" style="margin-top:7px"><i style="width:${r}%"></i></div></div>${CHEV}</button>`; }).join('')}</div>`
       : `<div class="empty">還沒有單字簿。點下方按鈕新增，再從總庫挑選單字。</div>`;
     body += `<div style="height:14px"></div><div class="row"><button class="btn ghost" data-act="new-book">新增單字簿</button><button class="btn ghost" data-act="draw-open">抽取單字</button></div>`;
   } else if(WTAB === 'library'){
@@ -776,7 +846,7 @@ const removeLabel = () => BOOK_SEL.size ? `從這本移除所選的 ${BOOK_SEL.s
 function viewBook(b){
   const s = bookStats(b), ids = b.wordIds.filter(id => W[id]);
   return `<button class="btn sm ghost" data-act="close-book" style="margin-bottom:10px">‹ 單字簿</button>
-    <h1>${esc(b.name)}</h1><p class="sub">已精通 ${s.mastered} / ${s.total}，已學過 ${s.learned}</p>
+    <h1>${esc(b.name)}</h1><p class="sub">已精通 ${s.mastered} / ${s.total}${s.pending ? `，待確認 ${s.pending}` : ''}，已學過 ${s.learned}</p>
     ${DRAWN && DRAWN.id === b.id ? `<div class="panel" style="padding:12px 16px;margin-top:14px;background:var(--green-soft);border-color:transparent">
       <div style="font-size:14px">已抽取 ${DRAWN.n} 個字。${DRAWN.short ? '此分組的新字已全部抽完。' : ''}可到「設定 → 今日訓練的新字來源」選這本，每天的新字就會從這本出。</div>
       <button class="btn sm ghost" data-act="goto-train" style="margin-top:10px">前往設定</button></div>` : ''}
@@ -838,19 +908,20 @@ function viewSettings(){
 
 /* ========== 統計頁 ========== */
 let ERR_TAB = 'pool';
-const TYPE_LABEL = {en2zh:'英選中', zh2en:'中選英', match:'配對', letters:'字母重組', spell:'拼寫'};
+const TYPE_LABEL = {en2zh:'英選中', zh2en:'中選英', match:'配對', letters:'字母重組', spell:'拼寫', cloze:'例句克漏字'};
 const isLearned = id => lvl(id) >= 1 || !!(P[id] && P[id].learnedAt);
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
 const mmdd2 = key => { const [, m, d] = key.split('-').map(Number); return `${m}/${d}`; };
 const WEEK = '日一二三四五六';
 const weekday = key => { const [y, m, d] = key.split('-').map(Number); return WEEK[new Date(y, m-1, d).getDay()]; };
 function progressOf(ids){
-  let m = 0, l = 0; ids.forEach(id => { if(lvl(id) >= 5) m++; else if(isLearned(id)) l++; });
-  return {total: ids.length, mastered: m, learning: l, fresh: ids.length - m - l};
+  let m = 0, pd = 0, l = 0; ids.forEach(id => { if(isMastered(id)) m++; else if(lvl(id) >= 5) pd++; else if(isLearned(id)) l++; });
+  return {total: ids.length, mastered: m, pending: pd, learning: l, fresh: ids.length - m - pd - l};
 }
+const PENDING_C = 'color-mix(in srgb,var(--brass) 45%,transparent)';
 function stackHTML(pr){
   if(!pr.total) return '<div class="stack"><i style="flex:1;background:var(--line)"></i></div>';
-  return `<div class="stack" role="img" aria-label="精通 ${pr.mastered}、學習中 ${pr.learning}、未學 ${pr.fresh}">${[[pr.mastered,'var(--brass)'],[pr.learning,'var(--green)'],[pr.fresh,'var(--line)']]
+  return `<div class="stack" role="img" aria-label="精通 ${pr.mastered}、待確認 ${pr.pending}、學習中 ${pr.learning}、未學 ${pr.fresh}">${[[pr.mastered,'var(--brass)'],[pr.pending,PENDING_C],[pr.learning,'var(--green)'],[pr.fresh,'var(--line)']]
     .filter(x => x[0]).map(([n, c]) => `<i style="flex:${n};background:${c}"></i>`).join('')}</div>`;
 }
 /* 長條圖：單一數列，點長條在下方顯示數字 */
@@ -907,14 +978,15 @@ function viewStats(){
     <div class="panel" style="padding:14px 16px">
       <div class="row" style="justify-content:space-between;align-items:baseline"><span>總庫 ${all.total} 字</span><span class="small">精通 ${pct(all.mastered, all.total)}%</span></div>
       ${stackHTML(all)}
-      <div class="legend"><span><i style="background:var(--brass)"></i>精通 ${all.mastered}</span><span><i style="background:var(--green)"></i>學習中 ${all.learning}</span><span><i style="background:var(--line)"></i>未學 ${all.fresh}</span></div>
-      ${groups.map(([name, pr]) => `<div class="grp"><div class="row" style="justify-content:space-between"><span>${name}</span><span class="small">精通 ${pr.mastered}／學習中 ${pr.learning}／共 ${pr.total}</span></div>${stackHTML(pr)}</div>`).join('')}
+      <div class="legend"><span><i style="background:var(--brass)"></i>精通 ${all.mastered}</span><span><i style="background:${PENDING_C}"></i>待確認 ${all.pending}</span><span><i style="background:var(--green)"></i>學習中 ${all.learning}</span><span><i style="background:var(--line)"></i>未學 ${all.fresh}</span></div>
+      ${groups.map(([name, pr]) => `<div class="grp"><div class="row" style="justify-content:space-between"><span>${name}</span><span class="small">精通 ${pr.mastered}／待確認 ${pr.pending}／學習中 ${pr.learning}／共 ${pr.total}</span></div>${stackHTML(pr)}</div>`).join('')}
       <div class="lvdist">${lvCount.map((v, i) => `<div><b>${v}</b><span>Lv ${i}</span></div>`).join('')}</div>
+      <p class="small" style="margin:12px 0 0">「待確認」是完成五關、但還沒通過第一次複習的字；第一次複習答對後才算精通。</p>
     </div>
 
     <h2>已精通單字</h2>
     <div class="panel"><button class="item" data-act="mastered-list" ${all.mastered ? '' : 'disabled'}><div class="grow"><div class="t">${all.mastered} 個字</div>
-      <div class="d">${all.mastered ? '依下次複習日期排列，可搜尋' : '綜合精通升到 Lv 5 的字會列在這裡'}</div></div>${all.mastered ? CHEV : ''}</button></div>
+      <div class="d">${all.mastered ? '依下次複習日期排列，可搜尋' : '通過第一次複習的字會列在這裡'}</div></div>${all.mastered ? CHEV : ''}</button></div>
 
     <h2>常錯單字</h2>
     <div class="seg" style="margin:0 0 12px">${[['pool',`錯字池（${pool.length}）`],['worst','累計最常錯']].map(([k, tt]) => `<button class="${ERR_TAB===k?'on':''}" data-act="err-tab" data-k="${k}">${tt}</button>`).join('')}</div>
@@ -937,7 +1009,7 @@ function viewStats(){
       : '<p class="small" style="margin:14px 16px">還沒有拼錯的紀錄。</p>'}</div>`;
 }
 function openMasteredList(){
-  const ids = Object.keys(W).filter(id => lvl(id) >= 5).sort((a, b) => ((P[a].srs && P[a].srs.due) || '9').localeCompare((P[b].srs && P[b].srs.due) || '9') || W[a].en.localeCompare(W[b].en));
+  const ids = Object.keys(W).filter(isMastered).sort((a, b) => ((P[a].srs && P[a].srs.due) || '9').localeCompare((P[b].srs && P[b].srs.due) || '9') || W[a].en.localeCompare(W[b].en));
   let q = '';
   const draw = () => {
     const ql = q.toLowerCase(), list = ids.filter(id => !q || W[id].en.toLowerCase().includes(ql) || W[id].zh.includes(q));
@@ -961,12 +1033,12 @@ function openMasteredList(){
 function openWordSheet(id, onClose = null){
   const w = W[id]; if(!w) return;
   const p = P[id], books = booksOfWord(id);
-  const ts = p ? Object.entries(p.typeStats).map(([t,v]) => `${({card:'暖身',en2zh:'英選中',zh2en:'中選英',letters:'字母重組',spell:'拼寫',match:'配對'})[t]||t} ${v.c}✓ ${v.w}✗`).join('、') : '';
+  const ts = p ? Object.entries(p.typeStats).map(([t,v]) => `${({card:'暖身',en2zh:'英選中',zh2en:'中選英',letters:'字母重組',spell:'拼寫',match:'配對',cloze:'例句克漏字'})[t]||t} ${v.c}✓ ${v.w}✗`).join('、') : '';
   openSheet({title: w.manual ? '單字（手動新增）' : '單字', body: wordDetail(w) + `
     <div class="panel" style="margin-top:16px">
-      <div class="lbl"><span>精通等級</span><span>Lv ${lvl(id)} ${LV_NAME[lvl(id)]}</span></div>
+      <div class="lbl"><span>精通等級</span><span style="text-align:right">${levelText(id)}</span></div>
       ${p && p.srs ? `<div class="lbl"><span>下次複習</span><span>${p.srs.due}</span></div>` : ''}
-      ${p && p.wrongTotal ? `<div class="lbl"><span>累計答錯</span><span>${p.wrongTotal} 次</span></div>` : ''}
+      ${p && p.wrongTotal ? `<div class="lbl"><span>累計答錯</span><span>${p.wrongTotal} 次${p.revWrong ? `（複習中 ${p.revWrong} 次）` : ''}</span></div>` : ''}
       ${ts ? `<div class="lbl" style="display:block"><div>各題型</div><div class="small">${ts}</div></div>` : ''}
       <div class="lbl"><span>分組</span><span>${tagsHTML(id)}</span></div>
       <div class="lbl" style="display:block"><div>所屬單字簿</div><div>${books.length ? books.map(b => `<span class="tag">${esc(b.name)}</span>`).join('') : '<span class="small">尚未加入任何單字簿</span>'}</div></div>
@@ -1067,7 +1139,7 @@ function openDrawSheet(){
       <div class="seg" id="dr-tag" style="margin:0 0 14px">${TAGS.map(([k,t]) => `<button data-k="${k}">${t}</button>`).join('')}</div>
       <div class="panel">
         <div class="lbl"><div class="grow">字數<div class="small">8 個字為一組，40 字剛好 5 組</div></div><div class="stepper"><button id="dr-minus" aria-label="減少">−</button><span id="dr-n"></span><button id="dr-plus" aria-label="增加">+</button></div></div>
-        <div class="lbl"><div class="grow">包含已學過但未精通的字<div class="small">另外加入 Lv 1–4 的字；已精通的字不會抽到</div></div><button class="switch" id="dr-incl" aria-pressed="false"></button></div>
+        <div class="lbl"><div class="grow">包含已學過但未精通的字<div class="small">另外加入 Lv 1–4 的字；已完成五關的字不會抽到</div></div><button class="switch" id="dr-incl" aria-pressed="false"></button></div>
         <label class="fld"><span>名稱</span><input id="dr-name" type="text" autocomplete="off" enterkeyhint="done"></label>
       </div>
       <p class="small" id="dr-avail" style="margin:10px 2px 0"></p>`,
@@ -1187,7 +1259,7 @@ function MasteryPhase(batch, scope, opts = {}){
       if(ok){
         if(cur) this.stageDone++;
         p.level = Math.min(5, Math.max(p.level, TYPE_BY_LV.indexOf(q.type) + 1));
-        if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; SES.mastered++; return '精通！明天會安排第一次複習'; }
+        if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; p.confirmedAt = null; SES.five++; return '完成五關！明天第一次複習答對就算精通'; }
         return `升到 Lv ${p.level} ${LV_NAME[p.level]}`;
       }
       this.errs[q.id] = (this.errs[q.id] || 0) + 1;
@@ -1209,6 +1281,13 @@ function MasteryPhase(batch, scope, opts = {}){
     }
   };
 }
+/* 複習累計答錯 LEECH_AT 次時，自動收進「頑固字」單字簿（只在剛好達到時收一次） */
+function addLeech(id){
+  let b = bookByName(LEECH_BOOK); if(!b) b = newBook(LEECH_BOOK);
+  if(b.wordIds.includes(id)) return '';
+  b.wordIds.push(id); save('books');
+  return `，已收進「${LEECH_BOOK}」`;
+}
 function ReviewPhase(ids){
   return {
     label:'遺忘曲線複習', ids, i:0, types: ids.map(() => pick(['en2zh','zh2en','spell'])),
@@ -1216,8 +1295,18 @@ function ReviewPhase(ids){
     peek(){ for(let k = this.i; k < this.ids.length; k++) if(W[this.ids[k]]) return this.types[k]; return 'end'; },
     onResult(q, ok){
       const p = prog(q.id);
-      if(ok){ const st = p.srs ? Math.min(p.srs.stage + 1, INTERVALS.length-1) : 0; p.srs = {stage:st, due:addDays(today(), INTERVALS[st])}; return `下次複習：${INTERVALS[st]} 天後`; }
-      p.srs = {stage:0, due:addDays(today(), 1)}; return '改為明天重新複習，已加入錯字池';
+      if(ok){
+        const st = p.srs ? Math.min(p.srs.stage + 1, INTERVALS.length-1) : 0;
+        p.srs = {stage:st, due:addDays(today(), INTERVALS[st])};
+        if(!p.confirmedAt){ p.confirmedAt = Date.now(); SES.confirmed++; return `確認精通！下次複習：${INTERVALS[st]} 天後`; }
+        return `下次複習：${INTERVALS[st]} 天後`;
+      }
+      /* 答錯不歸零：間隔退回兩階，明天再複習（v1.3.0） */
+      const st = p.srs ? Math.max(0, p.srs.stage - REVIEW_BACK) : 0;
+      p.srs = {stage:st, due:addDays(today(), 1)};
+      p.revWrong = (p.revWrong || 0) + 1;
+      const leech = p.revWrong === LEECH_AT ? addLeech(q.id) : '';
+      return `間隔退回，明天再複習${leech || '，已加入錯字池'}`;
     },
     progress(){ return {text:`${this.i} / ${this.ids.length}`, ratio: this.ids.length ? (this.i-1)/this.ids.length : 1}; }
   };
@@ -1241,10 +1330,48 @@ function PoolPhase(ids){
   };
 }
 
+/* ========== 例句克漏字（v1.3.0） ========== */
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* 在例句中找出這個字（含常見的 -s、-ed、-ing 等變化），找不到就不出題 */
+function clozeForm(w){
+  if(!w || !w.example || !w.en) return null;
+  const base = w.en.toLowerCase().trim(), v = new Set([base]);
+  if(/^[a-z]+$/.test(base)){
+    const last = base.slice(-1), stem = base.slice(0, -1);
+    ['s','es','d','ed','ing'].forEach(x => v.add(base + x));
+    if(last === 'e'){ v.add(stem + 'ing'); }
+    if(last === 'c'){ v.add(base + 'ked'); v.add(base + 'king'); v.add(base + 'ks'); }
+    if(/[^aeiou]y$/.test(base)){ v.add(stem + 'ies'); v.add(stem + 'ied'); }
+    if(/[^aeiou][aeiou][bdgklmnprt]$/.test(base)){ v.add(base + last + 'ed'); v.add(base + last + 'ing'); }
+  }
+  const alts = [...v].sort((a, b) => b.length - a.length).map(escRe).join('|');
+  const m = new RegExp(`(^|[^A-Za-z])(${alts})(?![A-Za-z])`, 'i').exec(w.example);
+  if(!m) return null;
+  const at = m.index + m[1].length;
+  return {before: w.example.slice(0, at), form: m[2], after: w.example.slice(at + m[2].length)};
+}
+const clozeIds = () => Object.keys(W).filter(id => isMastered(id) && clozeForm(W[id]));
+function ClozePhase(ids){
+  /* 克漏字答錯較多、練得較少的字優先 */
+  const score = id => { const t = (P[id] && P[id].typeStats.cloze) || {c:0, w:0}; return t.c - 2 * t.w; };
+  const list = shuffle(ids.slice()).sort((a, b) => score(a) - score(b)).slice(0, CLOZE_COUNT);
+  return {
+    label:'例句克漏字', queue: list, total: list.length, seen:{}, done:0,
+    next(){ while(this.queue.length){ const id = this.queue.shift(); if(W[id] && clozeForm(W[id])){ this.seen[id] = (this.seen[id] || 0) + 1; this.done++; return {type:'cloze', id}; } } return null; },
+    peek(){ return this.queue.some(id => W[id]) ? 'cloze' : 'end'; },
+    onResult(q, ok){
+      if(ok) return '';
+      if(this.seen[q.id] < 2 && this.queue.length >= 2){ this.queue.splice(Math.min(3, this.queue.length), 0, q.id); this.total++; return '稍後再考一次，已加入錯字池'; }
+      return '已加入錯字池';
+    },
+    progress(){ return {text:`${this.done} / ${this.total}`, ratio: this.total ? (this.done - 1) / this.total : 1}; }
+  };
+}
+
 function startSession(phases, opts = {}){
   phases = phases.filter(Boolean);
-  SES = {phases, pi:0, q:null, ans:0, cor:0, newL:0, mastered:0, poolOut:0, opts};
-  $('#session').hidden = false; document.body.style.overflow = 'hidden';
+  SES = {phases, pi:0, q:null, ans:0, cor:0, newL:0, five:0, confirmed:0, poolOut:0, opts};
+  $('#session').hidden = false; setLock('session', true);
   nextQ();
 }
 function nextQ(){
@@ -1259,7 +1386,7 @@ function nextQ(){
 function closeSession(){
   if('speechSynthesis' in window) speechSynthesis.cancel();
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  SES = null; $('#session').hidden = true; document.body.style.overflow = ''; render();
+  SES = null; $('#session').hidden = true; setLock('session', false); render();
 }
 function setHeader(){
   const ph = SES.q.phase, pr = ph.progress();
@@ -1286,10 +1413,20 @@ function renderQ(q){
     foot.innerHTML = `<button class="btn" data-act="card-next">${q.remedial ? '記住了，再試一次' : '記住了，下一個'}</button>`;
     autoSpeak(w.en); return;
   }
+  if(q.type === 'cloze'){
+    const f = clozeForm(w); q.form = f.form;
+    const ids = shuffle([q.id].concat(distractors(q.id, 3, Object.keys(W), true)));
+    body.innerHTML = `<div class="prompt" style="padding:8px 0 0"><div class="hint">選出最適合填入空格的字（選項為原形）</div></div>
+      <div class="cloze">${esc(f.before)}<span class="blank" id="cz-blank">&nbsp;</span>${esc(f.after)}</div>
+      <div class="cloze-zh" id="cz-zh"></div>
+      <div class="opts">${ids.map(id => `<button class="opt en" data-act="opt" data-id="${id}">${esc(W[id].en)}</button>`).join('')}</div>`;
+    return;
+  }
   if(q.type === 'en2zh' || q.type === 'zh2en'){
     const scope = q.scope || scopeOfWord(q.id);
-    const ids = shuffle([q.id].concat(distractors(q.id, 3, scope)));
     const en2zh = q.type === 'en2zh';
+    /* 中選英的選項是英文，加入形近字當干擾項（v1.3.0） */
+    const ids = shuffle([q.id].concat(distractors(q.id, 3, scope, !en2zh)));
     body.innerHTML = head + `<div class="prompt">${en2zh
         ? `<div class="row" style="justify-content:center"><span class="en">${esc(w.en)}</span>${spkBtn(w.en)}</div><div class="pos">${esc(w.pos)}</div>`
         : `<div class="zh">${esc(w.zh)}</div><div class="pos">${esc(w.pos)}</div>`}</div>
@@ -1353,17 +1490,32 @@ function keyboardForNext(){
   else if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
 function showFeedback(q, ok, note){
-  const w = W[q.id];
+  const w = W[q.id], cz = q.type === 'cloze';
   const ans = q.type === 'en2zh' ? w.zh : w.en;
-  $('#s-foot').innerHTML = `<button class="vbar ${ok?'ok':'no'}" data-act="next"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(ans)}</span>`}</span><small>${esc(note)}</small></button>`;
+  if(cz){
+    const bl = $('#cz-blank'); if(bl){ bl.textContent = q.form; bl.classList.add(ok ? 'good' : 'bad'); }
+    const zh = $('#cz-zh'); if(zh) zh.textContent = w.exampleZh || '';
+  }
+  /* 結果列旁加「詳解」：點了就暫停自動跳題並顯示單字卡（v1.3.0） */
+  $('#s-foot').innerHTML = `<div class="fbrow"><button class="vbar ${ok?'ok':'no'}" data-act="next"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(ans)}</span>`}</span><small>${esc(note)}</small></button><button class="why" data-act="why">詳解</button></div>`;
   setHeader();
   if(!ok && q.type !== 'en2zh') autoSpeak(w.en);
-  scheduleNext(ok ? 900 : 2200, ok ? speakCorrect(w.en) : null);
+  scheduleNext(cz ? (ok ? 1500 : 3000) : (ok ? 900 : 2200), ok ? speakCorrect(w.en) : null);
+}
+function showWhy(){
+  const q = SES && SES.q; if(!q || !q.done || q.hold || SES.ended || !q.id) return;
+  q.hold = true; clearTimeout(SES.timer);
+  const body = $('#s-body'), d = document.createElement('div');
+  d.className = 'fb'; d.innerHTML = wordDetail(W[q.id]);
+  body.appendChild(d);
+  const why = $('#s-foot .why'); if(why) why.remove();
+  const sm = $('#s-foot .vbar small'); if(sm) sm.textContent = '點這裡繼續';
+  setTimeout(() => d.scrollIntoView({block:'nearest', behavior:'smooth'}), 30);
 }
 function scheduleNext(ms, wait = null){
   const s = SES, q = s.q; q.doneAt = Date.now();
   clearTimeout(s.timer);
-  const go = () => { if(SES === s && s.q === q && !s.ended) nextQ(); };
+  const go = () => { if(SES === s && s.q === q && !s.ended && !q.hold) nextQ(); };
   if(!wait){ s.timer = setTimeout(go, ms); return; }
   /* 至少等 ms 毫秒，且等發音播完（再停 0.15 秒） */
   let a = false, b = false; const tryGo = () => { if(a && b) go(); };
@@ -1428,9 +1580,10 @@ function endSession(){
   $('#s-body').innerHTML = `<div class="summary"><div class="big">${s.ans ? acc + '%' : '✓'}</div><p class="sub" style="margin-top:8px">${s.opts.group ? `第 ${s.opts.group} 組完成，` : ''}${s.ans ? '本次正確率' : '這一輪完成了'}</p></div>
     <div class="sumgrid">
       <div><b>${s.ans}</b><span>作答題數</span></div><div><b>${s.newL}</b><span>新學單字</span></div>
-      <div><b>${s.mastered}</b><span>升到精通</span></div><div><b>${s.poolOut}</b><span>移出錯字池</span></div>
-    </div>`;
-  $('#s-foot').innerHTML = s.opts.again ? `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="again">繼續下一組</button></div>`
+      <div><b>${s.five}</b><span>完成五關（待確認）</span></div><div><b>${s.confirmed}</b><span>確認精通</span></div>
+    </div>
+    ${s.poolOut ? `<p class="small" style="text-align:center;margin:-8px 0 0">移出錯字池 ${s.poolOut} 個字</p>` : ''}`;
+  $('#s-foot').innerHTML = s.opts.again ? `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="again">${s.opts.againLabel || '繼續下一組'}</button></div>`
     : `<button class="btn" data-act="quit-now">回到主畫面</button>`;
 }
 
@@ -1448,9 +1601,15 @@ function startMastery(bookIds, group = 1, carry = []){
   const scope = scopeIds(bookIds);
   if(!scope.length){ toast('這個範圍沒有單字'); return; }
   const batch = buildBatch(scope, S.batchSize, Infinity);
-  if(!batch.length){ toast('這個範圍的單字都已精通'); return; }
+  if(!batch.length){ toast('這個範圍的單字都已完成五關'); return; }
   const ph = MasteryPhase(batch, scope, {group, carry});
   startSession([ph], {group, again: () => startMastery(bookIds, group + 1, ph.carryOut())});
+}
+function startCloze(){
+  const ids = clozeIds();
+  if(!ids.length) return toast('還沒有可以出克漏字的已精通單字');
+  if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題');
+  startSession([ClozePhase(ids)], {again: () => startCloze(), againLabel:'再練一組'});
 }
 
 /* ========== 事件 ========== */
@@ -1462,7 +1621,7 @@ async function readFile(){
   });
 }
 function parseJSON(text){
-  try{ return JSON.parse(text.replace(/^\uFEFF/, '')); }
+  try{ return JSON.parse(text.replace(/^﻿/, '')); }
   catch(e){ throw new Error('JSON 格式有誤，請檢查是否完整複製（含開頭與結尾的括號）。'); }
 }
 function doImportWords(text){
@@ -1514,6 +1673,7 @@ const ACT = {
   'pick-mastery': () => { if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題'); openScopeSheet(); },
   'start-review': () => { const d = dueIds(); if(d.length) startSession([ReviewPhase(shuffle(d))]); },
   'start-pool': () => { const p = poolIds(); if(p.length) startSession([PoolPhase(shuffle(p).slice(0, POOL_CAP))]); },
+  'start-cloze': () => startCloze(),
   word: el => openWordSheet(el.dataset.id),
   'open-book': el => { OPEN_BOOK = el.dataset.id; BOOK_EDIT = false; BOOK_SEL.clear(); render(); window.scrollTo(0,0); },
   'close-book': () => { OPEN_BOOK = null; DRAWN = null; BOOK_EDIT = false; render(); },
@@ -1577,6 +1737,7 @@ const ACT = {
   'quit-now': () => closeSession(),
   again: () => { const f = SES.opts.again; closeSession(); f(); },
   next: () => { if(SES && !SES.ended && SES.q && SES.q.done) nextQ(); },
+  why: () => showWhy(),
   'card-next': () => { const q = SES.q; if(q.done) return; q.done = true; q.phase.onResult(q, true); save('progress','log'); nextQ(); },
   opt: el => {
     const q = SES.q; if(q.done) return;
@@ -1616,7 +1777,8 @@ document.addEventListener('input', e => {
 });
 $('#s-body').addEventListener('click', e => {
   const q = SES && SES.q;
-  if(!q || !q.done || SES.ended || Date.now() - (q.doneAt || 0) < 300 || e.target.closest('[data-act=speak]')) return;
+  /* 看詳解時（q.hold）點畫面不跳題，按結果列才繼續 */
+  if(!q || !q.done || q.hold || SES.ended || Date.now() - (q.doneAt || 0) < 300 || e.target.closest('[data-act=speak]')) return;
   nextQ();
 });
 $('#kb-keep').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); if(SES && !SES.ended && SES.q && SES.q.done) nextQ(); } });
