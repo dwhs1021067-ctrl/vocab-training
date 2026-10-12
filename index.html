@@ -1332,20 +1332,36 @@ function PoolPhase(ids){
 
 /* ========== 例句克漏字（v1.3.0） ========== */
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/* 在例句中找出這個字（含常見的 -s、-ed、-ing 等變化），找不到就不出題 */
+/* 常見不規則動詞（克漏字比對用，v1.3.0） */
+const IRREG = {arise:'arose arisen', bear:'bore borne', break:'broke broken', bring:'brought', build:'built', burst:'burst', buy:'bought',
+  catch:'caught', choose:'chose chosen', come:'came', cut:'cut', deal:'dealt', do:'did done does', draw:'drew drawn', drive:'drove driven',
+  eat:'ate eaten', fall:'fell fallen', feel:'felt', fight:'fought', find:'found', forgo:'forwent forgone', get:'got gotten', give:'gave given',
+  go:'went gone goes', grow:'grew grown', hang:'hung', have:'has had', hold:'held', keep:'kept', know:'knew known', lay:'laid', lead:'led',
+  leave:'left', lend:'lent', let:'let', lose:'lost', make:'made', mean:'meant', meet:'met', overcome:'overcame', pay:'paid', put:'put',
+  rise:'rose risen', run:'ran', say:'said', see:'saw seen', seek:'sought', sell:'sold', send:'sent', set:'set', shut:'shut', sit:'sat',
+  speak:'spoke spoken', spend:'spent', spell:'spelt', stand:'stood', stick:'stuck', strike:'struck', sweep:'swept', take:'took taken',
+  teach:'taught', tell:'told', think:'thought', throw:'threw thrown', undertake:'undertook undertaken', wear:'wore worn', wind:'wound',
+  withdraw:'withdrew withdrawn', write:'wrote written'};
+/* 一個英文字的常見變化（-s、-ed、-ing、去 e、y 改 i、重複字尾子音、-c 加 k、不規則動詞） */
+function wordForms(base){
+  const v = new Set([base]);
+  if(!/^[a-z]+$/.test(base)) return v;
+  const last = base.slice(-1), stem = base.slice(0, -1);
+  ['s','es','d','ed','ing'].forEach(x => v.add(base + x));
+  if(last === 'e') v.add(stem + 'ing');
+  if(last === 'c'){ v.add(base + 'ked'); v.add(base + 'king'); v.add(base + 'ks'); }
+  if(/[^aeiou]y$/.test(base)){ v.add(stem + 'ies'); v.add(stem + 'ied'); }
+  if(/[^aeiou][aeiou][bdgklmnprt]$/.test(base)){ v.add(base + last + 'ed'); v.add(base + last + 'ing'); }
+  if(IRREG[base]) IRREG[base].split(' ').forEach(x => v.add(x));
+  return v;
+}
+/* 在例句中找出這個字；片語只讓第一個字變化（如 carried out、made a reservation），找不到就不出題 */
 function clozeForm(w){
   if(!w || !w.example || !w.en) return null;
-  const base = w.en.toLowerCase().trim(), v = new Set([base]);
-  if(/^[a-z]+$/.test(base)){
-    const last = base.slice(-1), stem = base.slice(0, -1);
-    ['s','es','d','ed','ing'].forEach(x => v.add(base + x));
-    if(last === 'e'){ v.add(stem + 'ing'); }
-    if(last === 'c'){ v.add(base + 'ked'); v.add(base + 'king'); v.add(base + 'ks'); }
-    if(/[^aeiou]y$/.test(base)){ v.add(stem + 'ies'); v.add(stem + 'ied'); }
-    if(/[^aeiou][aeiou][bdgklmnprt]$/.test(base)){ v.add(base + last + 'ed'); v.add(base + last + 'ing'); }
-  }
-  const alts = [...v].sort((a, b) => b.length - a.length).map(escRe).join('|');
-  const m = new RegExp(`(^|[^A-Za-z])(${alts})(?![A-Za-z])`, 'i').exec(w.example);
+  const parts = w.en.toLowerCase().trim().split(/\s+/);
+  const alts = [...wordForms(parts[0])].sort((a, b) => b.length - a.length).map(escRe).join('|');
+  const tail = parts.slice(1).map(x => '\\s+' + escRe(x)).join('');
+  const m = new RegExp(`(^|[^A-Za-z])((?:${alts})${tail})(?![A-Za-z])`, 'i').exec(w.example);
   if(!m) return null;
   const at = m.index + m[1].length;
   return {before: w.example.slice(0, at), form: m[2], after: w.example.slice(at + m[2].length)};
