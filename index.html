@@ -309,13 +309,13 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.3.2';
+const APP_VERSION = '1.4.0';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
-const INTERVALS = [1,2,4,7,15,30];
+const INTERVALS = [1,2,4,7,15,30,60,120];   /* v1.4.0 加上 60、120 天兩階，減少長期複習量 */
 const LV_NAME = ['暖身','視覺辨識','雙向連接','結構重組','主動輸出','精通'];
 const TYPE_BY_LV = ['card','en2zh','zh2en','letters','spell'];
 const POOL_CAP = 20;
@@ -805,7 +805,7 @@ function viewHome(){
     <button class="mode" data-act="pick-mastery">
       <div class="t">綜合精通<span class="n">${unmastered}</span></div><div class="d">尚未精通的字從暖身練到拼寫，升到 Lv 5。${S.skipWarmup ? '目前設定為跳過暖身。' : ''}</div></button>
     <button class="mode" data-act="start-review" ${due ? '' : 'disabled'}>
-      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">完成五關的字在第 1、2、4、7、15、30 天後再複習，第一次複習答對才算精通。</div></button>
+      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">完成五關的字在第 1、2、4、7、15、30、60、120 天後再複習，第一次複習答對才算精通；精通後只考英選中。</div></button>
     <button class="mode" data-act="start-pool" ${pool ? '' : 'disabled'}>
       <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
     <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
@@ -1297,7 +1297,8 @@ function addLeech(id){
 }
 function ReviewPhase(ids){
   return {
-    label:'遺忘曲線複習', ids, i:0, types: ids.map(() => pick(['en2zh','zh2en','spell'])),
+    /* 待確認的字（第一次複習）維持混合題型；已精通的字只考英選中，節省複習時間（v1.4.0） */
+    label:'遺忘曲線複習', ids, i:0, types: ids.map(id => isMastered(id) ? 'en2zh' : pick(['en2zh','zh2en','spell'])),
     next(){ while(this.i < this.ids.length){ const k = this.i++, id = this.ids[k]; if(W[id]) return {type: this.types[k], id}; } return null; },
     peek(){ for(let k = this.i; k < this.ids.length; k++) if(W[this.ids[k]]) return this.types[k]; return 'end'; },
     onResult(q, ok){
