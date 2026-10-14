@@ -309,7 +309,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const BACKUP_VERSION = 1;
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
@@ -696,9 +696,25 @@ function restoreBackup(obj){
   W = d.words || {}; B = d.books || []; P = d.progress || {}; POOL = d.wrongPool || []; S = d.settings || {}; L = d.log || {};
   normalizeAll(); migrateTags(); updateFinished(); saveAll(); applyTheme();
 }
-async function exportBackup(){
-  const text = JSON.stringify(makeBackup());
-  const name = `vocab-backup-${today()}.json`;
+async function exportBackup(){ await shareFile(JSON.stringify(makeBackup()), `vocab-backup-${today()}.json`); }
+/* 匯出單字庫（v1.5.0）：只含單字內容，格式與匯入格式相同，修正後可直接匯入覆蓋（同 id 保留進度） */
+const EXPORT_FIELDS = ['id','en','zh','pos','example','exampleZh','morph','tags'];
+function wordsForExport(tag){
+  return Object.keys(W).filter(id => tag === 'all' || hasTag(id, tag)).sort().map(id => {
+    const w = W[id], o = {};
+    EXPORT_FIELDS.forEach(k => { if(w[k] != null && w[k] !== '') o[k] = w[k]; });
+    if(!o.pos) o.pos = '';                 /* 手動新增的字可能沒有詞性 */
+    if(w.manual) o.manual = true;          /* 匯入時會忽略，僅供檢查時辨識手動字 */
+    return o;
+  });
+}
+async function exportWords(tag){
+  const list = wordsForExport(tag);
+  if(!list.length) return toast(tag === 'all' ? '總庫還沒有單字' : `「${TAG_NAME[tag]}」分組沒有單字`);
+  const text = '[\n' + list.map(o => '  ' + JSON.stringify(o)).join(',\n') + '\n]\n';
+  await shareFile(text, `vocab-words-${tag === 'all' ? 'all' : tag}-${today()}.json`);
+}
+async function shareFile(text, name){
   try{
     const file = new File([text], name, {type:'application/json'});
     if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; }
@@ -893,6 +909,12 @@ function viewSettings(){
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="import-file">選擇檔案</button><button class="btn sm" data-act="import-words">匯入</button></div>
       <div class="result" id="import-result"></div>
     </div>
+    <h2>匯出單字庫</h2>
+    <div class="panel" style="padding:14px 16px">
+      <p class="small" style="margin:0 0 10px">匯出總庫的單字內容（不含學習進度），格式與匯入相同。可傳給 Claude 檢查，修正後的檔案直接匯入即可覆蓋，進度保留。</p>
+      <div class="seg" style="margin:0 0 10px">${[['all','全部']].concat(TAGS).map(([k,t]) => `<button class="${EXPORT_TAG===k?'on':''}" data-act="export-tag" data-k="${k}">${t}</button>`).join('')}</div>
+      <button class="btn sm" data-act="export-words" ${wordsForExport(EXPORT_TAG).length ? '' : 'disabled'}>匯出 ${wordsForExport(EXPORT_TAG).length} 個字</button>
+    </div>
     <h2>手動新增的單字</h2>
     <div class="panel" style="padding:14px 16px">
       <p class="small" style="margin:0 0 10px">目前有 ${manualIds().length} 個手動新增的字。複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入。</p>
@@ -911,6 +933,7 @@ function viewSettings(){
 
 /* ========== 統計頁 ========== */
 let ERR_TAB = 'pool';
+let EXPORT_TAG = 'all';   /* 匯出單字庫的分組選擇，不存檔（v1.5.0） */
 const TYPE_LABEL = {en2zh:'英選中', zh2en:'中選英', match:'配對', letters:'字母重組', spell:'拼寫', cloze:'例句克漏字'};
 const isLearned = id => lvl(id) >= 1 || !!(P[id] && P[id].learnedAt);
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
@@ -1745,6 +1768,8 @@ const ACT = {
   'import-words': () => { const t = $('#import-text').value.trim(); if(!t) return toast('請先貼上 JSON 或選擇檔案'); doImportWords(t); },
   'import-file': async () => { const t = await readFile(); if(t) doImportWords(t); },
   'backup-export': () => exportBackup(),
+  'export-tag': el => { EXPORT_TAG = el.dataset.k; render(); },
+  'export-words': () => exportWords(EXPORT_TAG),
   'backup-copy': async () => { toast(await copyText(JSON.stringify(makeBackup())) ? '已複製備份文字' : '複製失敗，請改用匯出備份檔'); },
   'backup-import-file': async () => { const t = await readFile(); if(t) doRestore(t); },
   'backup-import-text': () => openSheet({title:'貼上文字還原', right:'取消', onRight: closeSheet,
