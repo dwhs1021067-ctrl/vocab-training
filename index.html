@@ -309,8 +309,8 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.5.0';
-const BACKUP_VERSION = 1;
+const APP_VERSION = '1.6.0';
+const BACKUP_VERSION = 2;        /* v1.6 起備份含克漏字題庫 */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
 const TAGS = [['toeic','多益'],['dipl','外特']];
@@ -417,6 +417,100 @@ function applyTheme(){
     if(t === 'auto'){ m.setAttribute('media', m.dataset.media); m.setAttribute('content', /dark/.test(m.dataset.media) ? THEME_BG.dark : THEME_BG.light); }
     else { m.removeAttribute('media'); m.setAttribute('content', THEME_BG[t]); }
   });
+}
+
+/* ========== 克漏字題庫（v1.6，存在 IndexedDB） ==========
+   localStorage 每個網址只有約 5 MB，題庫改存 IndexedDB（資料庫 vocab_db、資料表 questions）。
+   程式啟動時把題庫全部讀進記憶體（Q），之後出題都從記憶體取；寫入時同步更新兩邊。
+   無法使用 IndexedDB 時（例如預覽視窗），題庫只存在記憶體，不會保存。 */
+const Q_DB = 'vocab_db', Q_STORE = 'questions';
+const Q_KINDS = ['meaning','form','colloc'];
+let Q = {}, QBY = {}, QREADY = false, QDB = null, QLOAD = null;
+const qsOf = id => QBY[id] || [];
+function qIndex(){ QBY = {}; for(const k in Q){ const x = Q[k]; (QBY[x.wordId] || (QBY[x.wordId] = [])).push(x); } }
+function idbOpen(){
+  return new Promise(res => {
+    let done = false; const fin = v => { if(!done){ done = true; res(v); } };
+    setTimeout(() => fin(null), 4000);
+    try{
+      if(!window.indexedDB) return fin(null);
+      const r = indexedDB.open(Q_DB, 1);
+      r.onupgradeneeded = () => { const db = r.result; if(!db.objectStoreNames.contains(Q_STORE)) db.createObjectStore(Q_STORE, {keyPath:'qid'}); };
+      r.onsuccess = () => fin(r.result);
+      r.onerror = () => fin(null);
+      r.onblocked = () => fin(null);
+    }catch(e){ fin(null); }
+  });
+}
+async function qInit(){
+  /* 請瀏覽器長期保存本App的資料（空間不足時不要優先清除） */
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); }catch(e){}
+  QDB = await idbOpen();
+  if(QDB){
+    try{
+      const all = await new Promise((res, rej) => { const r = QDB.transaction(Q_STORE).objectStore(Q_STORE).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
+      all.forEach(x => { if(x && x.qid) Q[x.qid] = x; });
+    }catch(e){ toast('讀取克漏字題庫失敗'); }
+  }
+  qIndex(); QREADY = true;
+}
+/* 寫入題庫：clear 為 true 時先清空；沒有 IndexedDB 時只更新記憶體 */
+function qWrite(list, clear = false){
+  if(!QDB) return Promise.resolve(false);
+  return new Promise((res, rej) => {
+    let tx;
+    try{ tx = QDB.transaction(Q_STORE, 'readwrite'); const st = tx.objectStore(Q_STORE); if(clear) st.clear(); list.forEach(x => st.put(x)); }
+    catch(e){ return rej(e); }
+    tx.oncomplete = () => res(true);
+    tx.onerror = () => rej(tx.error || new Error('寫入失敗'));
+    tx.onabort = () => rej(tx.error || new Error('寫入中斷，可能是儲存空間不足'));
+  });
+}
+async function qReplaceAll(list){
+  await qWrite(list, true);
+  Q = {}; list.forEach(x => Q[x.qid] = x); qIndex();
+}
+/* 題目格式檢查：句子恰好一個空格（兩個以上底線）、選項 3–5 個且不重複、答案在選項中 */
+const BLANK_RE = /_{2,}/;
+function normQ(r){
+  if(!r || typeof r !== 'object' || Array.isArray(r)) return {err:'不是物件'};
+  const qid = str(r.qid), wordId = str(r.wordId), sentence = str(r.sentence).replace(/\s+/g, ' '), answer = str(r.answer), zh = str(r.zh);
+  const options = Array.isArray(r.options) ? r.options.map(str).filter(Boolean) : [];
+  const miss = [['qid',qid],['wordId',wordId],['sentence',sentence],['answer',answer],['zh',zh]].filter(x => !x[1]).map(x => x[0]);
+  if(!options.length) miss.push('options');
+  if(miss.length) return {err:`缺少 ${miss.join('、')}`};
+  const blanks = sentence.split(BLANK_RE).length - 1;
+  if(blanks !== 1) return {err: blanks ? '句子有多個空格' : '句子沒有空格（請用 ____ 標示）'};
+  if(options.length < 3 || options.length > 5) return {err:'選項必須是 3–5 個'};
+  if(new Set(options.map(normAns)).size !== options.length) return {err:'選項重複'};
+  const ans = options.find(o => normAns(o) === normAns(answer));
+  if(!ans) return {err:'答案不在選項中'};
+  const kind = str(r.kind).toLowerCase();
+  return {q:{qid, wordId, sentence: sentence.replace(BLANK_RE, '____'), answer: ans, options, zh, kind: Q_KINDS.includes(kind) ? kind : 'meaning'}};
+}
+async function importQuestions(arr){
+  if(!Array.isArray(arr)) throw new Error('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。');
+  await QLOAD;
+  const map = new Map(), skipped = [];
+  arr.forEach((r, i) => { const x = normQ(r); if(x.err){ skipped.push(`第 ${i+1} 筆${r && r.qid ? `（${str(r.qid)}）` : ''}：${x.err}`); return; } map.set(x.q.qid, x.q); });
+  const list = [...map.values()];
+  let added = 0, updated = 0; list.forEach(q => Q[q.qid] ? updated++ : added++);
+  try{ await qWrite(list); }
+  catch(e){ throw new Error('寫入題庫失敗：' + ((e && e.message) || e) + '。請先匯出備份。'); }
+  list.forEach(q => Q[q.qid] = q); qIndex();
+  const noWord = new Set(list.filter(q => !W[q.wordId]).map(q => q.wordId)).size;
+  return {added, updated, skipped, noWord};
+}
+function qbankInfo(){
+  if(!QREADY) return '題庫載入中…';
+  const n = Object.keys(Q).length, ids = Object.keys(QBY), miss = ids.filter(id => !W[id]).length;
+  return (n ? `題庫共 ${n} 題（${ids.length} 個字）${miss ? `，其中 ${miss} 個字還不在總庫` : ''}。` : '題庫目前是空的。')
+    + '例句克漏字會從已精通的字隨機出題：有題目的字從題庫與原例句中抽一題，沒有題目的字沿用原例句挖空。同一個題目 id 再次匯入會覆蓋。'
+    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+}
+function updateQbankInfo(){
+  const p = $('#qbank-info'); if(p) p.textContent = qbankInfo();
+  const c = $('[data-act=qclear]'); if(c) c.disabled = !Object.keys(Q).length;
 }
 
 /* ========== 工具 ========== */
@@ -685,18 +779,26 @@ function importWords(arr){
 }
 
 /* ========== 備份 ========== */
+/* 呼叫前須先 await QLOAD，確保題庫已讀進記憶體 */
 function makeBackup(){
   return {app:'vocab', backupVersion:BACKUP_VERSION, appVersion:APP_VERSION, exportedAt:new Date().toISOString(),
-    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L}};
+    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L, questions:Object.values(Q)}};
 }
-function restoreBackup(obj){
+/* 還原：取代所有資料。備份含題庫（v2）時一併取代題庫；舊版（v1）備份不含題庫，題庫維持原狀。回傳還原的題數（舊備份為 null） */
+async function restoreBackup(obj){
   if(!obj || typeof obj !== 'object' || !obj.data || obj.app !== 'vocab') throw new Error('這不是單字練習App的備份檔。若要加入單字，請改用「匯入單字」。');
   if((+obj.backupVersion||0) > BACKUP_VERSION) throw new Error('這份備份來自較新版本的App，請先更新App再匯入。');
+  await QLOAD;
   const d = obj.data;
   W = d.words || {}; B = d.books || []; P = d.progress || {}; POOL = d.wrongPool || []; S = d.settings || {}; L = d.log || {};
   normalizeAll(); migrateTags(); updateFinished(); saveAll(); applyTheme();
+  if(!Array.isArray(d.questions)) return null;
+  const list = d.questions.map(normQ).filter(x => x.q).map(x => x.q);
+  try{ await qReplaceAll(list); }
+  catch(e){ throw new Error('單字與進度已還原，但題庫寫入失敗：' + ((e && e.message) || e)); }
+  return list.length;
 }
-async function exportBackup(){ await shareFile(JSON.stringify(makeBackup()), `vocab-backup-${today()}.json`); }
+async function exportBackup(){ await QLOAD; await shareFile(JSON.stringify(makeBackup()), `vocab-backup-${today()}.json`); }
 /* 匯出單字庫（v1.5.0）：只含單字內容，格式與匯入格式相同，修正後可直接匯入覆蓋（同 id 保留進度） */
 const EXPORT_FIELDS = ['id','en','zh','pos','example','exampleZh','morph','tags'];
 function wordsForExport(tag){
@@ -825,7 +927,7 @@ function viewHome(){
     <button class="mode" data-act="start-pool" ${pool ? '' : 'disabled'}>
       <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
     <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
-      <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通單字的例句挖空，選出正確的字，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句練習。'}</div></button>
+      <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通的字隨機出題（題庫題目與原例句），選出正確的答案，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句與題庫題目練習。'}</div></button>
 `;
 }
 
@@ -915,6 +1017,14 @@ function viewSettings(){
       <div class="seg" style="margin:0 0 10px">${[['all','全部']].concat(TAGS).map(([k,t]) => `<button class="${EXPORT_TAG===k?'on':''}" data-act="export-tag" data-k="${k}">${t}</button>`).join('')}</div>
       <button class="btn sm" data-act="export-words" ${wordsForExport(EXPORT_TAG).length ? '' : 'disabled'}>匯出 ${wordsForExport(EXPORT_TAG).length} 個字</button>
     </div>
+    <h2 id="qbank-sec">克漏字題庫</h2>
+    <div class="panel" style="padding:14px 16px">
+      <p class="small" id="qbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(qbankInfo())}</p>
+      <textarea class="code" id="qimport-text" placeholder="貼上 Claude 提供的題目 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="qimport-file">選擇檔案</button><button class="btn sm" data-act="qimport">匯入題目</button></div>
+      <div class="result" id="qimport-result"></div>
+      <button class="btn sm danger" data-act="qclear" style="margin-top:12px" ${Object.keys(Q).length ? '' : 'disabled'}>清空題庫</button>
+    </div>
     <h2>手動新增的單字</h2>
     <div class="panel" style="padding:14px 16px">
       <p class="small" style="margin:0 0 10px">目前有 ${manualIds().length} 個手動新增的字。複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入。</p>
@@ -922,7 +1032,7 @@ function viewSettings(){
     </div>
     <h2>備份</h2>
     <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定與作答紀錄。換手機或換網址前請先匯出。</p>
+      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄與克漏字題庫。換手機或換網址前請先匯出。</p>
       <div class="row"><button class="btn sm" data-act="backup-export">匯出備份檔</button><button class="btn sm ghost" data-act="backup-copy">複製備份文字</button></div>
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="backup-import-file">從檔案還原</button><button class="btn sm ghost" data-act="backup-import-text">貼上文字還原</button></div>
     </div>
@@ -1058,7 +1168,7 @@ function openMasteredList(){
 /* ========== 單字詳情面板 ========== */
 function openWordSheet(id, onClose = null){
   const w = W[id]; if(!w) return;
-  const p = P[id], books = booksOfWord(id);
+  const p = P[id], books = booksOfWord(id), nq = qsOf(id).length;
   const ts = p ? Object.entries(p.typeStats).map(([t,v]) => `${({card:'暖身',en2zh:'英選中',zh2en:'中選英',letters:'字母重組',spell:'拼寫',match:'配對',cloze:'例句克漏字'})[t]||t} ${v.c}✓ ${v.w}✗`).join('、') : '';
   openSheet({title: w.manual ? '單字（手動新增）' : '單字', body: wordDetail(w) + `
     <div class="panel" style="margin-top:16px">
@@ -1066,6 +1176,7 @@ function openWordSheet(id, onClose = null){
       ${p && p.srs ? `<div class="lbl"><span>下次複習</span><span>${p.srs.due}</span></div>` : ''}
       ${p && p.wrongTotal ? `<div class="lbl"><span>累計答錯</span><span>${p.wrongTotal} 次${p.revWrong ? `（複習中 ${p.revWrong} 次）` : ''}</span></div>` : ''}
       ${ts ? `<div class="lbl" style="display:block"><div>各題型</div><div class="small">${ts}</div></div>` : ''}
+      ${nq ? `<div class="lbl"><span>克漏字題庫</span><span>${nq} 題</span></div>` : ''}
       <div class="lbl"><span>分組</span><span>${tagsHTML(id)}</span></div>
       <div class="lbl" style="display:block"><div>所屬單字簿</div><div>${books.length ? books.map(b => `<span class="tag">${esc(b.name)}</span>`).join('') : '<span class="small">尚未加入任何單字簿</span>'}</div></div>
     </div>
@@ -1361,7 +1472,7 @@ function PoolPhase(ids){
   };
 }
 
-/* ========== 例句克漏字（v1.3.0） ========== */
+/* ========== 例句克漏字（v1.3.0；v1.6 加入題庫） ========== */
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /* 常見不規則動詞（克漏字比對用，v1.3.0） */
 const IRREG = {arise:'arose arisen', bear:'bore borne', break:'broke broken', bring:'brought', build:'built', burst:'burst', buy:'bought',
@@ -1397,14 +1508,22 @@ function clozeForm(w){
   const at = m.index + m[1].length;
   return {before: w.example.slice(0, at), form: m[2], after: w.example.slice(at + m[2].length)};
 }
-const clozeIds = () => Object.keys(W).filter(id => isMastered(id) && clozeForm(W[id]));
+/* 可出克漏字的字：題庫有題目，或原例句找得到這個字（v1.6） */
+const clozeable = id => !!W[id] && (qsOf(id).length > 0 || !!clozeForm(W[id]));
+const clozeIds = () => Object.keys(W).filter(id => isMastered(id) && clozeable(id));
 function ClozePhase(ids){
   /* 克漏字答錯較多、練得較少的字優先 */
   const score = id => { const t = (P[id] && P[id].typeStats.cloze) || {c:0, w:0}; return t.c - 2 * t.w; };
   const list = shuffle(ids.slice()).sort((a, b) => score(a) - score(b)).slice(0, CLOZE_COUNT);
   return {
-    label:'例句克漏字', queue: list, total: list.length, seen:{}, done:0,
-    next(){ while(this.queue.length){ const id = this.queue.shift(); if(W[id] && clozeForm(W[id])){ this.seen[id] = (this.seen[id] || 0) + 1; this.done++; return {type:'cloze', id}; } } return null; },
+    label:'例句克漏字', queue: list, total: list.length, seen:{}, done:0, pickFor:{},
+    /* 每字從「題庫題目＋原例句」中隨機抽一題；同一次練習重考時出同一題（null 代表原例句） */
+    choose(id){
+      if(id in this.pickFor) return this.pickFor[id];
+      const pool = qsOf(id).slice(); if(clozeForm(W[id])) pool.push(null);
+      return this.pickFor[id] = pool.length ? pick(pool) : null;
+    },
+    next(){ while(this.queue.length){ const id = this.queue.shift(); if(clozeable(id)){ this.seen[id] = (this.seen[id] || 0) + 1; this.done++; return {type:'cloze', id, bq: this.choose(id)}; } } return null; },
     peek(){ return this.queue.some(id => W[id]) ? 'cloze' : 'end'; },
     onResult(q, ok){
       if(ok) return '';
@@ -1461,6 +1580,15 @@ function renderQ(q){
     autoSpeak(w.en); return;
   }
   if(q.type === 'cloze'){
+    /* 題庫題目（v1.6）：句子與選項由題庫提供，選項為句中實際形態 */
+    if(q.bq){
+      const [before, after = ''] = q.bq.sentence.split(BLANK_RE);
+      body.innerHTML = `<div class="prompt" style="padding:8px 0 0"><div class="hint">選出最適合填入空格的答案</div></div>
+        <div class="cloze">${esc(before)}<span class="blank" id="cz-blank">&nbsp;</span>${esc(after)}</div>
+        <div class="cloze-zh" id="cz-zh"></div>
+        <div class="opts">${shuffle(q.bq.options.slice()).map(o => `<button class="opt en" data-act="czopt" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
+      return;
+    }
     const f = clozeForm(w); q.form = f.form;
     const ids = shuffle([q.id].concat(distractors(q.id, 3, Object.keys(W), true)));
     body.innerHTML = `<div class="prompt" style="padding:8px 0 0"><div class="hint">選出最適合填入空格的字（選項為原形）</div></div>
@@ -1537,17 +1665,19 @@ function keyboardForNext(){
   else if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
 function showFeedback(q, ok, note){
-  const w = W[q.id], cz = q.type === 'cloze';
-  const ans = q.type === 'en2zh' ? w.zh : w.en;
+  const w = W[q.id], cz = q.type === 'cloze', bq = cz ? q.bq : null;
+  /* 題庫題目的答案是句中實際形態（如 negotiation），答錯時顯示並唸出這個形態 */
+  const say = bq ? bq.answer : w.en;
+  const ans = bq ? bq.answer : q.type === 'en2zh' ? w.zh : w.en;
   if(cz){
-    const bl = $('#cz-blank'); if(bl){ bl.textContent = q.form; bl.classList.add(ok ? 'good' : 'bad'); }
-    const zh = $('#cz-zh'); if(zh) zh.textContent = w.exampleZh || '';
+    const bl = $('#cz-blank'); if(bl){ bl.textContent = bq ? bq.answer : q.form; bl.classList.add(ok ? 'good' : 'bad'); }
+    const zh = $('#cz-zh'); if(zh) zh.textContent = bq ? bq.zh : (w.exampleZh || '');
   }
   /* 結果列旁加「詳解」：點了就暫停自動跳題並顯示單字卡（v1.3.0） */
   $('#s-foot').innerHTML = `<div class="fbrow"><button class="vbar ${ok?'ok':'no'}" data-act="next"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(ans)}</span>`}</span><small>${esc(note)}</small></button><button class="why" data-act="why">詳解</button></div>`;
   setHeader();
-  if(!ok && q.type !== 'en2zh') autoSpeak(w.en);
-  scheduleNext(cz ? (ok ? 1500 : 3000) : (ok ? 900 : 2200), ok ? speakCorrect(w.en) : null);
+  if(!ok && q.type !== 'en2zh') autoSpeak(say);
+  scheduleNext(cz ? (ok ? 1500 : 3000) : (ok ? 900 : 2200), ok ? speakCorrect(say) : null);
 }
 function showWhy(){
   const q = SES && SES.q; if(!q || !q.done || q.hold || SES.ended || !q.id) return;
@@ -1686,12 +1816,27 @@ function doImportWords(text){
     toast(`匯入完成：新增 ${r.added}、更新 ${r.updated}${r.tagged ? `、加上分組 ${r.tagged}` : ''}`);
   }catch(e){ out.style.color = 'var(--red)'; out.textContent = e.message; }
 }
-function doRestore(text){
+/* 匯入克漏字題目（v1.6） */
+async function doImportQuestions(text){
+  const out = $('#qimport-result');
+  try{
+    const r = await importQuestions(parseJSON(text));
+    out.style.color = '';
+    out.textContent = `已放進題庫：新增 ${r.added} 題，更新 ${r.updated} 題`
+      + (r.noWord ? `\n其中 ${r.noWord} 個字還不在總庫，先存著，匯入這些字後就會出題` : '')
+      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
+    const ta = $('#qimport-text'); if(ta) ta.value = '';
+    updateQbankInfo();
+    toast(`題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
+  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
+}
+async function doRestore(text){
   try{
     const obj = parseJSON(text);
     if(!confirm('還原會以備份內容取代目前所有資料，確定要還原嗎？')) return;
-    restoreBackup(obj); closeSheet(); render(); toast('已還原備份');
-  }catch(e){ alert(e.message); }
+    const qn = await restoreBackup(obj); closeSheet(); render();
+    toast(qn == null ? '已還原備份（舊版備份不含題庫，題庫維持不變）' : `已還原備份（題庫 ${qn} 題）`);
+  }catch(e){ alert(e.message); render(); }
 }
 
 const ACT = {
@@ -1767,19 +1912,29 @@ const ACT = {
   'train-book': el => { const id = el.dataset.id; S.trainBooks = S.trainBooks.includes(id) ? S.trainBooks.filter(x => x !== id) : S.trainBooks.concat(id); save('settings'); render(); },
   'import-words': () => { const t = $('#import-text').value.trim(); if(!t) return toast('請先貼上 JSON 或選擇檔案'); doImportWords(t); },
   'import-file': async () => { const t = await readFile(); if(t) doImportWords(t); },
+  'qimport': () => { const t = $('#qimport-text').value.trim(); if(!t) return toast('請先貼上題目 JSON 或選擇檔案'); doImportQuestions(t); },
+  'qimport-file': async () => { const t = await readFile(); if(t) doImportQuestions(t); },
+  'qclear': async () => {
+    const n = Object.keys(Q).length; if(!n) return;
+    if(!confirm(`確定要清空克漏字題庫（${n} 題）嗎？單字與學習進度不受影響，之後可重新匯入題目。`)) return;
+    try{ await qReplaceAll([]); updateQbankInfo(); const out = $('#qimport-result'); if(out) out.textContent = ''; toast('已清空題庫'); }
+    catch(e){ toast('清空題庫失敗'); }
+  },
   'backup-export': () => exportBackup(),
   'export-tag': el => { EXPORT_TAG = el.dataset.k; render(); },
   'export-words': () => exportWords(EXPORT_TAG),
-  'backup-copy': async () => { toast(await copyText(JSON.stringify(makeBackup())) ? '已複製備份文字' : '複製失敗，請改用匯出備份檔'); },
+  'backup-copy': async () => { await QLOAD; toast(await copyText(JSON.stringify(makeBackup())) ? '已複製備份文字' : '複製失敗，請改用匯出備份檔'); },
   'backup-import-file': async () => { const t = await readFile(); if(t) doRestore(t); },
   'backup-import-text': () => openSheet({title:'貼上文字還原', right:'取消', onRight: closeSheet,
     body:`<textarea class="code" id="restore-text" placeholder="貼上先前複製的備份文字" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>`,
     foot:`<button class="btn" data-act="restore-go">還原</button>`}),
   'restore-go': () => { const t = $('#restore-text').value.trim(); if(t) doRestore(t); },
-  'reset-all': () => {
-    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定與紀錄。建議先匯出備份。確定繼續？')) return;
+  'reset-all': async () => {
+    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定、紀錄與克漏字題庫。建議先匯出備份。確定繼續？')) return;
     if(str(prompt('請輸入「重設」兩個字以確認')) !== '重設') return toast('已取消');
-    Object.values(K).forEach(k => store.del(k)); loadAll(); applyTheme(); TAB = 'home'; render(); toast('已全部重設');
+    Object.values(K).forEach(k => store.del(k)); loadAll(); applyTheme();
+    try{ await QLOAD; await qReplaceAll([]); }catch(e){}
+    TAB = 'home'; render(); toast('已全部重設');
   },
   /* 練習中 */
   quit: () => { if(!SES || !SES.ans || confirm('要結束這次練習嗎？已作答的進度都已儲存。')) closeSession(); },
@@ -1792,6 +1947,14 @@ const ACT = {
     const q = SES.q; if(q.done) return;
     const ok = el.dataset.id === q.id;
     document.querySelectorAll('.opt').forEach(b => { b.disabled = true; if(b.dataset.id === q.id) b.classList.add('right'); });
+    if(!ok) el.classList.add('wrong');
+    answer(ok);
+  },
+  /* 題庫克漏字的選項（v1.6）：比對選項文字與答案 */
+  czopt: el => {
+    const q = SES.q; if(q.done || !q.bq) return;
+    const ok = el.dataset.v === q.bq.answer;
+    document.querySelectorAll('.opt').forEach(b => { b.disabled = true; if(b.dataset.v === q.bq.answer) b.classList.add('right'); });
     if(!ok) el.classList.add('wrong');
     answer(ok);
   },
@@ -1842,6 +2005,8 @@ document.addEventListener('visibilitychange', () => { if(!document.hidden && !SE
 loadAll();
 applyTheme();
 render();
+/* 題庫在背景讀取，讀完後重畫（練習中不打斷） */
+QLOAD = qInit().then(() => { if(SES) return; if($('#sheet-wrap').hidden) render(); else updateQbankInfo(); });
 </script>
 </body>
 </html>
