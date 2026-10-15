@@ -207,6 +207,11 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .spell{width:100%;color:var(--ink);font-family:var(--serif);font-size:24px;text-align:center;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface)}
 .spell.bad{border-color:var(--red);color:var(--red)}
 .spell.good{border-color:var(--ok);color:var(--ok)}
+/* 拼寫提示（v1.6.1） */
+.sp-hint{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-end;gap:4px;margin:14px 0 0;font-family:var(--serif);font-size:22px;color:var(--green)}
+.sp-hint b{min-width:16px;text-align:center;font-weight:600}
+.sp-hint i{display:inline-block;width:14px;border-bottom:2px solid var(--muted);margin-bottom:5px}
+.sp-hint .gap{width:12px}
 .match{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .match .col{display:grid;gap:10px;align-content:start}
 .mt{min-height:58px;padding:8px 10px;border-radius:12px;background:var(--surface);border:1.5px solid var(--line);font-size:15.5px;line-height:1.3}
@@ -244,6 +249,21 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .cloze .blank.good{color:var(--ok);border-color:var(--ok);font-weight:600}
 .cloze .blank.bad{color:var(--red);border-color:var(--red);font-weight:600}
 .cloze-zh{color:var(--muted);font-size:15px;margin:6px 2px 4px;min-height:1.5em}
+/* 首頁今日進度（v1.6.1） */
+.today{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 16px 16px;margin:14px 0 14px}
+.today .hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.today .hd b{font-size:17px}
+.today .hd .streak2{font-size:14px;color:var(--brass);font-weight:600;white-space:nowrap}
+.today .sum{font-size:14px;color:var(--muted);margin-top:2px}
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.tile2{background:var(--paper);border-radius:12px;padding:10px 12px;min-width:0}
+.tile2 .lb{font-size:13px;color:var(--muted)}
+.tile2 .v{font-family:var(--serif);font-size:26px;font-weight:600;line-height:1.2}
+.tile2 .v small{font-size:15px;color:var(--muted);font-weight:500;margin-left:3px}
+.tile2 .ft{font-size:12px;color:var(--muted);margin-top:2px}
+.tile2 .bar{margin-top:6px;height:6px}
+.tile2.gold .v{color:var(--brass)}
+.tile2.done .ft{color:var(--ok)}
 .stat-line{display:flex;gap:18px;margin:14px 0 18px;color:var(--muted);font-size:14px}
 .stat-line b{font-family:var(--serif);font-size:20px;color:var(--ink);margin-right:3px}
 /* 綜合精通範圍面板的整體統計（v1.3.1） */
@@ -309,7 +329,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const BACKUP_VERSION = 2;        /* v1.6 起備份含克漏字題庫 */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
@@ -554,7 +574,9 @@ function bookStats(b){
 function updateFinished(){
   B.forEach(b => { const s = bookStats(b); if(s.total && s.mastered === s.total){ if(!b.finishedAt) b.finishedAt = Date.now(); } else b.finishedAt = null; });
 }
-function logDay(){ const t = today(); return L[t] || (L[t] = {n:0, c:0, nw:0, t:{}, sp:{s:0,m:0,e:0}}); }
+/* 每日紀錄（v1.6.1 加上 p 完成五關、m 確認精通、rv 遺忘曲線複習題數；舊紀錄沒有這些欄位時視為 0） */
+function logDay(){ const t = today(); return L[t] || (L[t] = {n:0, c:0, nw:0, p:0, m:0, rv:0, t:{}, sp:{s:0,m:0,e:0}}); }
+const bump = k => { const d = logDay(); d[k] = (d[k] || 0) + 1; };
 const todayLog = () => L[today()] || {n:0, c:0, nw:0};
 function addToPool(id){
   const e = POOL.find(x => x.wordId === id);
@@ -914,12 +936,25 @@ function viewHome(){
     <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>`;
   const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), cz = clozeIds().length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
-  const newLeft = Math.max(0, S.dailyNew - (tl.nw || 0));
+  const nw = tl.nw || 0, newLeft = Math.max(0, S.dailyNew - nw), rv = tl.rv || 0;
   const acc = tl.n ? Math.round(tl.c / tl.n * 100) + '%' : '—';
+  /* 今日訓練還剩什麼：到期複習、錯字（最多 20 個）、新字額度 */
+  const poolLeft = Math.min(POOL_CAP, poolIds().filter(id => !dueIds().includes(id)).length);
+  const left = [due && `到期複習 ${due}`, poolLeft && `錯字 ${poolLeft}`, newLeft && `新字 ${newLeft}`].filter(Boolean);
+  const tile = (lb, v, ft, cls = '', bar = null) => `<div class="tile2 ${cls}"><div class="lb">${lb}</div><div class="v">${v}</div>${bar != null ? `<div class="bar"><i style="width:${bar}%"></i></div>` : ''}<div class="ft">${ft}</div></div>`;
   return `<p class="sub">${dateStr}</p><h1>練習</h1>
-    <div class="stat-line"><span><b>${st}</b>連續天數</span><span><b>${tl.n || 0}</b>今日作答</span><span><b>${acc}</b>正確率</span></div>
+    <section class="today" aria-label="今日進度">
+      <div class="hd"><b>今日進度</b><span class="streak2">連續 ${st} 天</span></div>
+      <div class="sum">今日作答 ${tl.n || 0} 題，正確率 ${acc}</div>
+      <div class="tgrid">
+        ${tile('新學單字', `${nw}<small>/ ${S.dailyNew}</small>`, newLeft ? `還可以學 ${newLeft} 個` : '今日新字已學完', newLeft ? '' : 'done', S.dailyNew ? Math.min(100, nw / S.dailyNew * 100) : 100)}
+        ${tile('到期複習', `${rv}<small>題</small>`, due ? `還有 ${due} 個到期` : '今天的複習都完成了', due ? '' : 'done')}
+        ${tile('新增待確認', `${tl.p || 0}<small>個</small>`, '今天完成五關，明天第一次複習')}
+        ${tile('新增精通', `${tl.m || 0}<small>個</small>`, '今天第一次複習答對', 'gold')}
+      </div>
+    </section>
     <button class="mode main" data-act="start-today">
-      <div class="t">今日訓練</div><div class="d">依序完成到期複習、錯字複習和今日新字${newLeft ? `（還有 ${newLeft} 個）` : '（今日新字已學完）'}。</div></button>
+      <div class="t">今日訓練</div><div class="d">${left.length ? `還有${left.join('、')}。依序完成到期複習、錯字和新字。` : '今天的訓練都完成了。'}</div></button>
     <button class="mode" data-act="pick-mastery">
       <div class="t">綜合精通<span class="n">${unmastered}</span></div><div class="d">尚未精通的字從暖身練到拼寫，升到 Lv 5。${S.skipWarmup ? '目前設定為跳過暖身。' : ''}</div></button>
     <button class="mode" data-act="start-review" ${due ? '' : 'disabled'}>
@@ -1400,7 +1435,7 @@ function MasteryPhase(batch, scope, opts = {}){
       if(ok){
         if(cur) this.stageDone++;
         p.level = Math.min(5, Math.max(p.level, TYPE_BY_LV.indexOf(q.type) + 1));
-        if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; p.confirmedAt = null; SES.five++; return '完成五關！明天第一次複習答對就算精通'; }
+        if(p.level === 5){ p.srs = {stage:0, due:addDays(today(), 1)}; p.confirmedAt = null; SES.five++; bump('p'); return '完成五關！明天第一次複習答對就算精通'; }
         return `升到 Lv ${p.level} ${LV_NAME[p.level]}`;
       }
       this.errs[q.id] = (this.errs[q.id] || 0) + 1;
@@ -1437,10 +1472,11 @@ function ReviewPhase(ids){
     peek(){ for(let k = this.i; k < this.ids.length; k++) if(W[this.ids[k]]) return this.types[k]; return 'end'; },
     onResult(q, ok){
       const p = prog(q.id);
+      bump('rv');
       if(ok){
         const st = p.srs ? Math.min(p.srs.stage + 1, INTERVALS.length-1) : 0;
         p.srs = {stage:st, due:addDays(today(), INTERVALS[st])};
-        if(!p.confirmedAt){ p.confirmedAt = Date.now(); SES.confirmed++; return `確認精通！下次複習：${INTERVALS[st]} 天後`; }
+        if(!p.confirmedAt){ p.confirmedAt = Date.now(); SES.confirmed++; bump('m'); return `確認精通！下次複習：${INTERVALS[st]} 天後`; }
         return `下次複習：${INTERVALS[st]} 天後`;
       }
       /* 答錯不歸零：間隔退回兩階，明天再複習（v1.3.0） */
@@ -1622,9 +1658,13 @@ function renderQ(q){
   }
   if(q.type === 'spell'){
     body.innerHTML = head + `<div class="prompt"><div class="zh">${esc(w.zh)}</div><div class="pos">${esc(w.pos)}</div><div class="hint">輸入英文拼字</div></div>
-      <input class="spell" id="spell-in" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="輸入英文">`;
-    foot.innerHTML = `<div class="row"><button class="btn ghost" data-act="spell-giveup">不會</button><button class="btn" data-act="spell-check">確認</button></div>`;
+      <input class="spell" id="spell-in" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="輸入英文">
+      <div class="sp-hint" id="sp-hint" hidden></div>`;
+    foot.innerHTML = `<div class="row"><button class="btn ghost" data-act="spell-giveup">不會</button><button class="btn ghost" data-act="spell-hint" id="sp-hint-btn">提示</button><button class="btn" data-act="spell-check">確認</button></div>`;
     const inp = $('#spell-in');
+    /* 按「提示」時不讓輸入欄失去焦點，鍵盤保持開啟（v1.6.1） */
+    $('#sp-hint-btn').addEventListener('pointerdown', e => e.preventDefault());
+    $('#sp-hint-btn').addEventListener('mousedown', e => e.preventDefault());
     inp.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); checkSpell(); } });
     /* 打對時自動送出，不必按確認 */
     inp.addEventListener('input', () => { if(normAns(inp.value) === normAns(w.en)) checkSpell(); });
@@ -1971,6 +2011,17 @@ const ACT = {
   'tile-back': () => { const q = SES.q; if(q.done || !q.typed.length) return; const k = q.typed.pop(); document.querySelector(`.tile[data-k="${k}"]`).classList.remove('used'); drawSlots(q); },
   'tile-giveup': () => { const q = SES.q; if(q.done) return; answer(false); },
   'spell-check': () => checkSpell(),
+  /* 拼寫提示（v1.6.1）：顯示第一個與最後一個字母，中間以底線代表字母數，片語保留空格 */
+  'spell-hint': () => {
+    const q = SES && SES.q; if(!q || q.done || q.type !== 'spell') return;
+    const box = $('#sp-hint'), btn = $('#sp-hint-btn'), en = W[q.id].en;
+    const idx = [...en].map((c, i) => /[a-z]/i.test(c) ? i : -1).filter(i => i >= 0);
+    const first = idx[0], last = idx[idx.length - 1];
+    box.innerHTML = [...en].map((c, i) => c === ' ' ? '<span class="gap"></span>' : (i === first || i === last || !/[a-z]/i.test(c)) ? `<b>${esc(c)}</b>` : '<i></i>').join('');
+    box.hidden = false; q.hinted = true;
+    if(btn){ btn.disabled = true; }
+    const inp = $('#spell-in'); if(inp) inp.focus();
+  },
   'spell-giveup': () => { const q = SES.q; if(q.done) return; $('#spell-in').readOnly = true; answer(false); },
   mt: el => tapMatch(el)
 };
