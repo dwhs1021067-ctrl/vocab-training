@@ -329,7 +329,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const BACKUP_VERSION = 2;        /* v1.6 起備份含克漏字題庫 */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
@@ -1921,17 +1921,20 @@ const ACT = {
   'book-more': () => {
     const b = bookById(OPEN_BOOK);
     openSheet({title:b.name, body:`<div class="panel"><button class="item" data-act="book-rename"><div class="grow t">重新命名</div></button>
-      <button class="item" data-act="book-delete"><div class="grow t" style="color:var(--red)">刪除單字簿</div></button></div>`, onRight: closeSheet});
+      <button class="item" data-act="book-delete"><div class="grow"><div class="t" style="color:var(--red)">刪除單字簿</div><div class="d">單字與學習進度都會保留在總庫</div></div></button></div>`, onRight: closeSheet});
   },
   'book-rename': () => { const b = bookById(OPEN_BOOK); const n = str(prompt('新名稱', b.name)); closeSheet(); if(!n || n === b.name) return; if(bookByName(n)) return toast('已有同名的單字簿'); b.name = n; save('books'); render(); },
+  /* 刪除單字簿只移除這本簿子；單字留在總庫，學習進度、複習排程與錯字池都不動（v1.6.2） */
   'book-delete': () => {
     const b = bookById(OPEN_BOOK); closeSheet();
-    if(!confirm(`確定要刪除單字簿「${b.name}」嗎？`)) return;
-    const only = b.wordIds.filter(id => W[id] && booksOfWord(id).length === 1);
+    const s = bookStats(b), left = s.total - s.mastered;
+    const msg = `確定要刪除單字簿「${b.name}」嗎？\n\n單字會留在總庫，學習進度與複習排程都會保留，只是不再列在單字簿區。`
+      + (left ? `\n\n提醒：這本還有 ${left} 個字尚未精通${s.pending ? `（其中 ${s.pending} 個待確認）` : ''}。` : '');
+    if(!confirm(msg)) return;
     B = B.filter(x => x !== b);
     S.trainBooks = S.trainBooks.filter(id => id !== b.id);
-    if(only.length && confirm(`其中有 ${only.length} 個字不屬於其他單字簿。要一併從總庫刪除這些字和它們的進度嗎？\n（選「取消」則保留在總庫）`)) only.forEach(deleteWord);
-    OPEN_BOOK = null; saveAll(); render(); toast('已刪除單字簿');
+    if(DRAWN && DRAWN.id === b.id) DRAWN = null;
+    OPEN_BOOK = null; save('books','settings'); render(); toast('已刪除單字簿，單字與進度都保留');
   },
   'word-to-book': el => {
     const id = el.dataset.id, back = () => { render(); openWordSheet(id); };
