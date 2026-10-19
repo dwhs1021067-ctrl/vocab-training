@@ -332,13 +332,14 @@ input[type=range]{width:100%;accent-color:var(--green)}
 const APP_VERSION = '1.6.2';
 const BACKUP_VERSION = 2;        /* v1.6 起備份含克漏字題庫 */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
-const DEF_SETTINGS = {dailyNew:10, batchSize:8, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:40, tagMigrated:false, speakOnCorrect:true};
+const DEF_SETTINGS = {dailyNew:10, batchSize:7, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:20, tagMigrated:false, speakOnCorrect:true, drawV2:false};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
 const INTERVALS = [1,2,4,7,15,30,60,120];   /* v1.4.0 加上 60、120 天兩階，減少長期複習量 */
 const LV_NAME = ['暖身','視覺辨識','雙向連接','結構重組','主動輸出','精通'];
 const TYPE_BY_LV = ['card','en2zh','zh2en','letters','spell'];
 const POOL_CAP = 20;
+const DRAW_MIN = 10, DRAW_MAX = 80, DRAW_STEP = 5;   /* 抽取單字字數（v1.6.2：預設 20，以 5 為單位） */
 const CLOZE_COUNT = 20;          /* 例句克漏字每次題數（v1.3.0） */
 const LEECH_AT = 3;              /* 遺忘曲線複習累計答錯幾次收進「頑固字」（v1.3.0） */
 const LEECH_BOOK = '頑固字';
@@ -398,16 +399,18 @@ function normalizeAll(){
   POOL = Array.isArray(POOL) ? POOL.filter(x => x && x.wordId).map(x => ({wordId:String(x.wordId), addedAt:+x.addedAt||Date.now(), streak:clampInt(x.streak,0,3,0)})) : [];
   S = Object.assign({}, DEF_SETTINGS, S && typeof S === 'object' ? S : {});
   if(!Array.isArray(S.trainBooks)) S.trainBooks = [];
-  S.dailyNew = clampInt(S.dailyNew, 0, 50, 10); S.batchSize = clampInt(S.batchSize, 5, 15, 8); S.linkCount = clampInt(S.linkCount, 5, 100, 20);
+  S.dailyNew = clampInt(S.dailyNew, 0, 50, 10); S.batchSize = clampInt(S.batchSize, 5, 15, 7); S.linkCount = clampInt(S.linkCount, 5, 100, 20);
   S.rate = Math.min(1.2, Math.max(0.5, +S.rate || 0.9)); S.autoSpeak = S.autoSpeak !== false; S.speakOnCorrect = S.speakOnCorrect !== false; S.skipWarmup = S.skipWarmup === true;
   if(!['auto','light','dark'].includes(S.theme)) S.theme = 'auto';
-  S.drawCount = Math.min(80, Math.max(16, Math.round((+S.drawCount || 40) / 8) * 8)); S.tagMigrated = S.tagMigrated === true;
+  /* v1.6.2：抽取單字改為預設 20 字、每輪 7 字；舊設定（40 字、8 字一組）只在第一次開啟新版時換成新預設值 */
+  if(S.drawV2 !== true){ S.drawCount = 20; S.batchSize = 7; S.drawV2 = true; }
+  S.drawCount = clampInt(S.drawCount, DRAW_MIN, DRAW_MAX, 20); S.tagMigrated = S.tagMigrated === true;
   if(!L || typeof L !== 'object') L = {};
 }
 function loadAll(){
   W = store.get(K.words, {}); B = store.get(K.books, []); P = store.get(K.progress, {});
   POOL = store.get(K.pool, []); S = store.get(K.settings, {}); L = store.get(K.log, {});
-  normalizeAll(); migrateTags();
+  normalizeAll(); migrateTags(); save('settings');
 }
 /* 分組標籤（v1.1） */
 function normTags(t){
@@ -1305,6 +1308,11 @@ function drawPool(tag, incl){
     return incl || (l === 0 && !(p && p.learnedAt));
   });
 }
+/* 每輪字數說明：例如 20 字、每輪 7 字 → 分成 3 組（7＋7＋6） */
+function groupText(n){
+  const k = S.batchSize, g = Math.ceil(n / k), last = n - k * (g - 1);
+  return `${k} 個字為一組，${n} 字分成 ${g} 組` + (g > 1 ? `（${Array(g - 1).fill(k).concat(last).join('＋')}）` : '');
+}
 const mmdd = () => { const d = new Date(); return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0'); };
 function uniqueBookName(n){ if(!bookByName(n)) return n; let k = 2; while(bookByName(`${n}（${k}）`)) k++; return `${n}（${k}）`; }
 function openDrawSheet(){
@@ -1314,7 +1322,7 @@ function openDrawSheet(){
     body:`<p class="small" style="margin:0 2px 10px">從分組中隨機抽出還沒學過、也還沒放進任何單字簿的字，自動建立一本單字簿。</p>
       <div class="seg" id="dr-tag" style="margin:0 0 14px">${TAGS.map(([k,t]) => `<button data-k="${k}">${t}</button>`).join('')}</div>
       <div class="panel">
-        <div class="lbl"><div class="grow">字數<div class="small">8 個字為一組，40 字剛好 5 組</div></div><div class="stepper"><button id="dr-minus" aria-label="減少">−</button><span id="dr-n"></span><button id="dr-plus" aria-label="增加">+</button></div></div>
+        <div class="lbl"><div class="grow">字數<div class="small" id="dr-grp"></div></div><div class="stepper"><button id="dr-minus" aria-label="減少">−</button><span id="dr-n"></span><button id="dr-plus" aria-label="增加">+</button></div></div>
         <div class="lbl"><div class="grow">包含已學過但未精通的字<div class="small">另外加入 Lv 1–4 的字；已完成五關的字不會抽到</div></div><button class="switch" id="dr-incl" aria-pressed="false"></button></div>
         <label class="fld"><span>名稱</span><input id="dr-name" type="text" autocomplete="off" enterkeyhint="done"></label>
       </div>
@@ -1325,7 +1333,8 @@ function openDrawSheet(){
       const upd = () => {
         el.querySelectorAll('#dr-tag button').forEach(b => b.classList.toggle('on', b.dataset.k === tag));
         $$('#dr-n').textContent = S.drawCount;
-        $$('#dr-minus').disabled = S.drawCount <= 16; $$('#dr-plus').disabled = S.drawCount >= 80;
+        $$('#dr-minus').disabled = S.drawCount <= DRAW_MIN; $$('#dr-plus').disabled = S.drawCount >= DRAW_MAX;
+        $$('#dr-grp').textContent = groupText(S.drawCount);
         $$('#dr-incl').classList.toggle('on', incl); $$('#dr-incl').setAttribute('aria-pressed', incl);
         const avail = drawPool(tag, incl).length, av = $$('#dr-avail');
         av.textContent = !avail ? `「${TAG_NAME[tag]}」目前沒有可抽取的字。` : avail < S.drawCount ? `目前只有 ${avail} 個字可抽，會全部抽出。` : `目前有 ${avail} 個字可抽。`;
@@ -1335,9 +1344,9 @@ function openDrawSheet(){
       };
       upd();
       $$('#dr-tag').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; tag = b.dataset.k; upd(); });
-      const step = d => { S.drawCount = Math.min(80, Math.max(16, S.drawCount + d)); save('settings'); upd(); };
-      $$('#dr-minus').addEventListener('click', () => step(-8));
-      $$('#dr-plus').addEventListener('click', () => step(8));
+      const step = d => { S.drawCount = Math.min(DRAW_MAX, Math.max(DRAW_MIN, S.drawCount + d)); save('settings'); upd(); };
+      $$('#dr-minus').addEventListener('click', () => step(-DRAW_STEP));
+      $$('#dr-plus').addEventListener('click', () => step(DRAW_STEP));
       $$('#dr-incl').addEventListener('click', () => { incl = !incl; upd(); });
       nameIn.addEventListener('input', () => { nameEdited = !!str(nameIn.value); });
       nameIn.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); nameIn.blur(); } });
