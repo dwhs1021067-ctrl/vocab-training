@@ -301,6 +301,24 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .chart .col.now .cl{color:var(--ink);font-weight:600}
 .cap{margin:8px 4px 2px;min-height:20px}
 .item:disabled{opacity:.6}
+/* 文法練習（v1.7） */
+.g-meta{display:flex;align-items:center;gap:6px;margin:2px 0 0}
+.g-meta .tag{margin:0}
+.tag.lv2{background:var(--brass-soft);color:var(--brass)}
+.tag.weak{background:var(--red-soft);color:var(--red);font-size:11px;padding:1px 7px;margin:0 0 0 6px;vertical-align:1px}
+.g-sent{font-size:20px;padding:14px 2px 18px}
+.opt .k{display:inline-block;min-width:1.9em;font-family:var(--sans);font-size:14px;color:var(--muted);font-weight:500}
+.opt.right .k{color:var(--ok)}
+.gexp .row{justify-content:space-between;align-items:flex-start}
+.gexp .zh{font-size:15px;color:var(--muted);line-height:1.6}
+.gexp .lb{font-size:13px;font-weight:600;color:var(--green);margin:12px 0 2px}
+.gexp .tx{font-size:15.5px;line-height:1.7}
+.gexp .yours{margin:0 0 4px}
+.gwl .item{align-items:flex-start}
+.gwl .item .d{white-space:normal;font-family:var(--serif);font-size:15px;color:var(--ink)}
+.gwl .gexp{margin:0;border:0;border-top:1px dashed var(--line);border-radius:0;background:var(--paper)}
+.gcat .item .d{white-space:nowrap}
+.clock{font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -329,9 +347,9 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.6.2';
-const BACKUP_VERSION = 2;        /* v1.6 起備份含克漏字題庫 */
-const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log'};
+const APP_VERSION = '1.7.0';
+const BACKUP_VERSION = 3;        /* v1.6 起備份含克漏字題庫；v1.7 起含文法題庫與文法練習進度 */
+const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log', grammar:'vocab_grammar'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:7, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:20, tagMigrated:false, speakOnCorrect:true, drawV2:false};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
@@ -362,6 +380,8 @@ const store = {
   del(k){ delete memStore[k]; try{ localStorage.removeItem(k); }catch(e){} }
 };
 let W = {}, B = [], P = {}, POOL = [], S = {}, L = {};
+/* 文法練習進度（v1.7）：prog 為每題作答紀錄與錯題本狀態，settings 為練習設定 */
+let G = {prog:{}, settings:{}};
 
 const str = v => v == null ? '' : String(v).trim();
 const clampInt = (v, lo, hi, d) => { v = parseInt(v, 10); return isNaN(v) ? d : Math.min(hi, Math.max(lo, v)); };
@@ -410,6 +430,7 @@ function normalizeAll(){
 function loadAll(){
   W = store.get(K.words, {}); B = store.get(K.books, []); P = store.get(K.progress, {});
   POOL = store.get(K.pool, []); S = store.get(K.settings, {}); L = store.get(K.log, {});
+  G = normGrammarData(store.get(K.grammar, {}));
   normalizeAll(); migrateTags(); save('settings');
 }
 /* 分組標籤（v1.1） */
@@ -427,10 +448,10 @@ function migrateTags(){
   return n;
 }
 function save(...keys){
-  const map = {words:W, books:B, progress:P, pool:POOL, settings:S, log:L};
+  const map = {words:W, books:B, progress:P, pool:POOL, settings:S, log:L, grammar:G};
   keys.forEach(k => store.set(K[k], map[k]));
 }
-const saveAll = () => save('words','books','progress','pool','settings','log');
+const saveAll = () => save('words','books','progress','pool','settings','log','grammar');
 const THEME_BG = {light:'#F5F7F5', dark:'#1D2321'};
 function applyTheme(){
   const r = document.documentElement, t = S.theme || 'auto';
@@ -446,9 +467,11 @@ function applyTheme(){
    localStorage 每個網址只有約 5 MB，題庫改存 IndexedDB（資料庫 vocab_db、資料表 questions）。
    程式啟動時把題庫全部讀進記憶體（Q），之後出題都從記憶體取；寫入時同步更新兩邊。
    無法使用 IndexedDB 時（例如預覽視窗），題庫只存在記憶體，不會保存。 */
-const Q_DB = 'vocab_db', Q_STORE = 'questions';
+const Q_DB = 'vocab_db', Q_STORE = 'questions', G_STORE = 'grammar';
+const DB_VERSION = 2;            /* v1.7：版本 2 新增 grammar 資料表（文法題庫），questions 不動 */
 const Q_KINDS = ['meaning','form','colloc'];
 let Q = {}, QBY = {}, QREADY = false, QDB = null, QLOAD = null;
+let GQ = {};                     /* 文法題庫（v1.7），以 gid 為 key，與克漏字題庫一起在啟動時讀進記憶體 */
 const qsOf = id => QBY[id] || [];
 function qIndex(){ QBY = {}; for(const k in Q){ const x = Q[k]; (QBY[x.wordId] || (QBY[x.wordId] = [])).push(x); } }
 function idbOpen(){
@@ -457,32 +480,37 @@ function idbOpen(){
     setTimeout(() => fin(null), 4000);
     try{
       if(!window.indexedDB) return fin(null);
-      const r = indexedDB.open(Q_DB, 1);
-      r.onupgradeneeded = () => { const db = r.result; if(!db.objectStoreNames.contains(Q_STORE)) db.createObjectStore(Q_STORE, {keyPath:'qid'}); };
-      r.onsuccess = () => fin(r.result);
+      const r = indexedDB.open(Q_DB, DB_VERSION);
+      r.onupgradeneeded = () => { const db = r.result;
+        if(!db.objectStoreNames.contains(Q_STORE)) db.createObjectStore(Q_STORE, {keyPath:'qid'});
+        if(!db.objectStoreNames.contains(G_STORE)) db.createObjectStore(G_STORE, {keyPath:'gid'}); };
+      r.onsuccess = () => { const db = r.result; db.onversionchange = () => db.close(); fin(db); };
       r.onerror = () => fin(null);
       r.onblocked = () => fin(null);
     }catch(e){ fin(null); }
   });
+}
+function idbAll(st){
+  return new Promise((res, rej) => { const r = QDB.transaction(st).objectStore(st).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
 }
 async function qInit(){
   /* 請瀏覽器長期保存本App的資料（空間不足時不要優先清除） */
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); }catch(e){}
   QDB = await idbOpen();
   if(QDB){
-    try{
-      const all = await new Promise((res, rej) => { const r = QDB.transaction(Q_STORE).objectStore(Q_STORE).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
-      all.forEach(x => { if(x && x.qid) Q[x.qid] = x; });
-    }catch(e){ toast('讀取克漏字題庫失敗'); }
+    try{ (await idbAll(Q_STORE)).forEach(x => { if(x && x.qid) Q[x.qid] = x; }); }
+    catch(e){ toast('讀取克漏字題庫失敗'); }
+    try{ (await idbAll(G_STORE)).forEach(x => { if(x && x.gid) GQ[x.gid] = x; }); }
+    catch(e){ toast('讀取文法題庫失敗'); }
   }
   qIndex(); QREADY = true;
 }
-/* 寫入題庫：clear 為 true 時先清空；沒有 IndexedDB 時只更新記憶體 */
-function qWrite(list, clear = false){
+/* 寫入題庫：clear 為 true 時先清空；沒有 IndexedDB 時只更新記憶體。st 為資料表名稱（克漏字 questions、文法 grammar） */
+function qWrite(list, clear = false, stName = Q_STORE){
   if(!QDB) return Promise.resolve(false);
   return new Promise((res, rej) => {
     let tx;
-    try{ tx = QDB.transaction(Q_STORE, 'readwrite'); const st = tx.objectStore(Q_STORE); if(clear) st.clear(); list.forEach(x => st.put(x)); }
+    try{ tx = QDB.transaction(stName, 'readwrite'); const st = tx.objectStore(stName); if(clear) st.clear(); list.forEach(x => st.put(x)); }
     catch(e){ return rej(e); }
     tx.oncomplete = () => res(true);
     tx.onerror = () => rej(tx.error || new Error('寫入失敗'));
@@ -534,6 +562,104 @@ function qbankInfo(){
 function updateQbankInfo(){
   const p = $('#qbank-info'); if(p) p.textContent = qbankInfo();
   const c = $('[data-act=qclear]'); if(c) c.disabled = !Object.keys(Q).length;
+  updateGbankInfo();
+}
+
+/* ========== 文法題庫（v1.7，多益 Part 5 文法題，存在 IndexedDB 的 grammar 資料表） ==========
+   題目綁的是文法類型（cat），不綁單字；作答紀錄與錯題本存在 localStorage 的 vocab_grammar。 */
+const GCATS = [['pos','詞性判斷'],['tense','動詞時態'],['voice','主被動語態'],['agree','主詞動詞一致'],['pron','代名詞'],['prepconj','介系詞與連接詞'],
+  ['conj','連接詞與轉折副詞'],['relative','關係詞'],['participle','分詞'],['verbal','動名詞與不定詞'],['compare','比較級與最高級'],['mood','假設語氣、倒裝與助動詞']];
+const GCAT_NAME = Object.fromEntries(GCATS);
+const G_COUNTS = [10, 20, 30];       /* 每次題數 */
+const G_MOCK = 30;                   /* Part 5 模擬固定 30 題 */
+const G_SEC = 20;                    /* 參考標準：每題 20 秒內 */
+const G_GAPS = [1, 3, 7];            /* 錯題本：答錯隔天考；之後答對依序 3 天、7 天後再考 */
+const G_OUT = 3;                     /* 錯題複習連續答對 3 次移出錯題本（使用者確定） */
+const DEF_GSET = {count:20, timer:false, mode:'cat', cats:[]};
+function normGrammarData(g){
+  g = g && typeof g === 'object' && !Array.isArray(g) ? g : {};
+  const prog = {}, src = g.prog && typeof g.prog === 'object' ? g.prog : {};
+  for(const gid in src){ const p = src[gid]; if(!p || typeof p !== 'object') continue;
+    const wrong = p.wrong === true;
+    prog[gid] = {c: +p.c || 0, w: +p.w || 0, last: str(p.last), wrong, streak: wrong ? clampInt(p.streak, 0, G_OUT, 0) : 0, due: wrong ? (str(p.due) || today()) : null}; }
+  const s = Object.assign({}, DEF_GSET, g.settings && typeof g.settings === 'object' ? g.settings : {});
+  return {prog, settings:{count: G_COUNTS.includes(+s.count) ? +s.count : 20, timer: s.timer === true,
+    mode: ['cat','mock','review'].includes(s.mode) ? s.mode : 'cat', cats: Array.isArray(s.cats) ? s.cats.filter(c => GCAT_NAME[c]) : []}};
+}
+/* 題目所屬類型：題庫有這題時以題庫為準；題庫清空後從 gid（g_類型_序號）判斷，讓統計保留 */
+const gCatOf = gid => GQ[gid] ? GQ[gid].cat : ((/^g_([a-z]+)_/.exec(gid) || [])[1] || '');
+/* 題目格式檢查：句子恰好一個空格、選項剛好 4 個且不重複、答案在選項中、類型代碼正確、有中譯與解析 */
+function normG(r){
+  if(!r || typeof r !== 'object' || Array.isArray(r)) return {err:'不是物件'};
+  const gid = str(r.gid), cat = str(r.cat).toLowerCase(), sentence = str(r.sentence).replace(/\s+/g, ' '), answer = str(r.answer), zh = str(r.zh), explain = str(r.explain);
+  const options = Array.isArray(r.options) ? r.options.map(x => str(x).replace(/\s+/g, ' ')).filter(Boolean) : [];
+  const miss = [['gid',gid],['cat',cat],['sentence',sentence],['answer',answer],['zh',zh],['explain',explain]].filter(x => !x[1]).map(x => x[0]);
+  if(!options.length) miss.push('options');
+  if(miss.length) return {err:`缺少 ${miss.join('、')}`};
+  if(!GCAT_NAME[cat]) return {err:`類型代碼 cat 不正確（${cat}）`};
+  const blanks = sentence.split(BLANK_RE).length - 1;
+  if(blanks !== 1) return {err: blanks ? '句子有多個空格' : '句子沒有空格（請用 ____ 標示）'};
+  if(options.length !== 4) return {err:'選項必須剛好 4 個'};
+  if(new Set(options.map(normAns)).size !== 4) return {err:'選項重複'};
+  const ans = options.find(o => normAns(o) === normAns(answer));
+  if(!ans) return {err:'答案不在選項中'};
+  return {q:{gid, cat, lvl: +r.lvl === 2 ? 2 : 1, sentence: sentence.replace(BLANK_RE, '____'), options, answer: ans, zh, explain}};
+}
+async function importGrammar(arr){
+  if(!Array.isArray(arr)) throw new Error('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。');
+  await QLOAD;
+  const map = new Map(), skipped = [];
+  arr.forEach((r, i) => { const x = normG(r); if(x.err){ skipped.push(`第 ${i+1} 筆${r && r.gid ? `（${str(r.gid)}）` : ''}：${x.err}`); return; } map.set(x.q.gid, x.q); });
+  const list = [...map.values()];
+  let added = 0, updated = 0; list.forEach(q => GQ[q.gid] ? updated++ : added++);
+  try{ await qWrite(list, false, G_STORE); }
+  catch(e){ throw new Error('寫入文法題庫失敗：' + ((e && e.message) || e) + '。請先匯出備份。'); }
+  list.forEach(q => GQ[q.gid] = q);
+  return {added, updated, skipped};
+}
+async function gReplaceAll(list){
+  await qWrite(list, true, G_STORE);
+  GQ = {}; list.forEach(x => GQ[x.gid] = x);
+}
+const gIds = () => Object.keys(GQ);
+function gCatCount(){ const n = {}; gIds().forEach(id => { const c = GQ[id].cat; n[c] = (n[c] || 0) + 1; }); return n; }
+/* 錯題本：在錯題本中、且題庫還有這題 */
+const gWrongIds = () => Object.keys(G.prog).filter(id => G.prog[id].wrong && GQ[id]);
+const gDueIds = () => { const t = today(); return gWrongIds().filter(id => G.prog[id].due <= t); };
+function gbankInfo(){
+  if(!QREADY) return '題庫載入中…';
+  const n = gIds().length, cc = gCatCount();
+  return (n ? `文法題庫共 ${n} 題：${GCATS.filter(([k]) => cc[k]).map(([k, t]) => `${t} ${cc[k]}`).join('、')}。` : '文法題庫目前是空的。')
+    + '同一個題目 id（gid）再次匯入會覆蓋。作答紀錄與錯題本另外保存，清空題庫不會刪除，重新匯入同 id 的題目後即可接續。'
+    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+}
+function updateGbankInfo(){
+  const p = $('#gbank-info'); if(p) p.textContent = gbankInfo();
+  const c = $('[data-act=gclear]'); if(c) c.disabled = !gIds().length;
+}
+/* 作答紀錄（v1.7）：今日作答 n、c 包含文法題，另記 g 文法作答、gc 文法答對 */
+function gRecord(gid, ok, review){
+  const p = G.prog[gid] || (G.prog[gid] = {c:0, w:0, last:'', wrong:false, streak:0, due:null});
+  ok ? p.c++ : p.w++; p.last = today();
+  let note = '';
+  if(!ok){
+    note = p.wrong ? '已在錯題本，明天再複習' : '已加入錯題本，明天複習';
+    p.wrong = true; p.streak = 0; p.due = addDays(today(), G_GAPS[0]);
+  } else if(review && p.wrong){
+    p.streak++;
+    if(p.streak >= G_OUT){ p.wrong = false; p.streak = 0; p.due = null; note = `連續答對 ${G_OUT} 次，已移出錯題本`; }
+    else { p.due = addDays(today(), G_GAPS[p.streak]); note = `連續答對 ${p.streak} / ${G_OUT}，${G_GAPS[p.streak]} 天後再複習`; }
+  }
+  const d = logDay(); d.n++; d.g = (d.g || 0) + 1; if(ok){ d.c++; d.gc = (d.gc || 0) + 1; }
+  save('grammar', 'log');
+  return note;
+}
+/* 各類型累計正確率（依每題的作答紀錄加總） */
+function gCatStats(){
+  const st = {}; let n = 0, c = 0;
+  for(const gid in G.prog){ const p = G.prog[gid], cat = gCatOf(gid); if(!GCAT_NAME[cat]) continue;
+    const x = st[cat] || (st[cat] = {c:0, w:0}); x.c += p.c; x.w += p.w; n += p.c + p.w; c += p.c; }
+  return {st, n, c};
 }
 
 /* ========== 工具 ========== */
@@ -807,21 +933,24 @@ function importWords(arr){
 /* 呼叫前須先 await QLOAD，確保題庫已讀進記憶體 */
 function makeBackup(){
   return {app:'vocab', backupVersion:BACKUP_VERSION, appVersion:APP_VERSION, exportedAt:new Date().toISOString(),
-    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L, questions:Object.values(Q)}};
+    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L, questions:Object.values(Q), grammar:Object.values(GQ), grammarProg:G}};
 }
-/* 還原：取代所有資料。備份含題庫（v2）時一併取代題庫；舊版（v1）備份不含題庫，題庫維持原狀。回傳還原的題數（舊備份為 null） */
+/* 還原：取代所有資料。備份含克漏字題庫（v2 起）時一併取代；含文法題庫與進度（v3 起）時一併取代。
+   舊版備份缺少的部分維持原狀。回傳 {qn 克漏字題數, gn 文法題數}，備份沒有該部分時為 null */
 async function restoreBackup(obj){
   if(!obj || typeof obj !== 'object' || !obj.data || obj.app !== 'vocab') throw new Error('這不是單字練習App的備份檔。若要加入單字，請改用「匯入單字」。');
   if((+obj.backupVersion||0) > BACKUP_VERSION) throw new Error('這份備份來自較新版本的App，請先更新App再匯入。');
   await QLOAD;
-  const d = obj.data;
+  const d = obj.data, hasG = Array.isArray(d.grammar);
   W = d.words || {}; B = d.books || []; P = d.progress || {}; POOL = d.wrongPool || []; S = d.settings || {}; L = d.log || {};
+  if(hasG || (d.grammarProg && typeof d.grammarProg === 'object')) G = normGrammarData(d.grammarProg);
   normalizeAll(); migrateTags(); updateFinished(); saveAll(); applyTheme();
-  if(!Array.isArray(d.questions)) return null;
-  const list = d.questions.map(normQ).filter(x => x.q).map(x => x.q);
-  try{ await qReplaceAll(list); }
-  catch(e){ throw new Error('單字與進度已還原，但題庫寫入失敗：' + ((e && e.message) || e)); }
-  return list.length;
+  const out = {qn:null, gn:null};
+  try{
+    if(Array.isArray(d.questions)){ const list = d.questions.map(normQ).filter(x => x.q).map(x => x.q); await qReplaceAll(list); out.qn = list.length; }
+    if(hasG){ const list = d.grammar.map(normG).filter(x => x.q).map(x => x.q); await gReplaceAll(list); out.gn = list.length; }
+  }catch(e){ throw new Error('單字與進度已還原，但題庫寫入失敗：' + ((e && e.message) || e)); }
+  return out;
 }
 async function exportBackup(){ await QLOAD; await shareFile(JSON.stringify(makeBackup()), `vocab-backup-${today()}.json`); }
 /* 匯出單字庫（v1.5.0）：只含單字內容，格式與匯入格式相同，修正後可直接匯入覆蓋（同 id 保留進度） */
@@ -936,7 +1065,8 @@ function viewHome(){
   const dateStr = `${d.getMonth()+1} 月 ${d.getDate()} 日 星期${'日一二三四五六'[d.getDay()]}`;
   if(!n) return `<p class="sub">${dateStr}</p><h1>練習</h1>
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
-    <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>`;
+    <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>
+    ${gIds().length ? grammarCard() : ''}`;
   const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), cz = clozeIds().length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const nw = tl.nw || 0, newLeft = Math.max(0, S.dailyNew - nw), rv = tl.rv || 0;
@@ -966,7 +1096,16 @@ function viewHome(){
       <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
     <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
       <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通的字隨機出題（題庫題目與原例句），選出正確的答案，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句與題庫題目練習。'}</div></button>
+    ${grammarCard()}
 `;
+}
+/* 練習頁的「文法練習」入口（v1.7）：顯示題庫題數與錯題本題數；題庫為空時停用 */
+function grammarCard(){
+  const n = gIds().length, wb = gWrongIds().length, due = gDueIds().length;
+  return `<button class="mode" data-act="grammar-open" ${n ? '' : 'disabled'}>
+      <div class="t">文法練習<span class="n">${n}</span></div><div class="d">${!QREADY ? '題庫載入中…' : n
+        ? `多益 Part 5 文法題，作答後看中譯與解析。${wb ? `錯題本 ${wb} 題${due ? `，今天到期 ${due} 題` : ''}。` : ''}`
+        : '文法題庫是空的，請到「設定 → 文法題庫」匯入題目。'}</div></button>`;
 }
 
 function viewWords(){
@@ -1063,6 +1202,14 @@ function viewSettings(){
       <div class="result" id="qimport-result"></div>
       <button class="btn sm danger" data-act="qclear" style="margin-top:12px" ${Object.keys(Q).length ? '' : 'disabled'}>清空題庫</button>
     </div>
+    <h2 id="gbank-sec">文法題庫</h2>
+    <div class="panel" style="padding:14px 16px">
+      <p class="small" id="gbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(gbankInfo())}</p>
+      <textarea class="code" id="gimport-text" placeholder="貼上 Claude 提供的文法題 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="gimport-file">選擇檔案</button><button class="btn sm" data-act="gimport">匯入題目</button></div>
+      <div class="result" id="gimport-result"></div>
+      <button class="btn sm danger" data-act="gclear" style="margin-top:12px" ${gIds().length ? '' : 'disabled'}>清空文法題庫</button>
+    </div>
     <h2>手動新增的單字</h2>
     <div class="panel" style="padding:14px 16px">
       <p class="small" style="margin:0 0 10px">目前有 ${manualIds().length} 個手動新增的字。複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入。</p>
@@ -1070,7 +1217,7 @@ function viewSettings(){
     </div>
     <h2>備份</h2>
     <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄與克漏字題庫。換手機或換網址前請先匯出。</p>
+      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄、克漏字題庫、文法題庫與文法練習進度。換手機或換網址前請先匯出。</p>
       <div class="row"><button class="btn sm" data-act="backup-export">匯出備份檔</button><button class="btn sm ghost" data-act="backup-copy">複製備份文字</button></div>
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="backup-import-file">從檔案還原</button><button class="btn sm ghost" data-act="backup-import-text">貼上文字還原</button></div>
     </div>
@@ -1108,7 +1255,7 @@ function colsHTML(id, cols, cap){
 const CHART_TIPS = {};
 function viewStats(){
   const ids = Object.keys(W);
-  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>`;
+  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>${Object.keys(G.prog).length ? gStatsHTML() : ''}`;
   const t = today(), all = progressOf(ids);
   let n = 0, c = 0; const ty = {}, sp = {s:0, m:0, e:0};
   Object.values(L).forEach(d => { n += d.n || 0; c += d.c || 0;
@@ -1117,7 +1264,7 @@ function viewStats(){
   /* 近 14 天作答 */
   const days = [];
   for(let i = 13; i >= 0; i--){ const k = addDays(t, -i), d = L[k] || {};
-    days.push({v: d.n || 0, now: i === 0, label: i === 0 ? '今' : String(+k.slice(8)), tip: `${mmdd2(k)}（${weekday(k)}）作答 ${d.n || 0} 題${d.n ? `，正確率 ${pct(d.c, d.n)}%` : ''}`}); }
+    days.push({v: d.n || 0, now: i === 0, label: i === 0 ? '今' : String(+k.slice(8)), tip: `${mmdd2(k)}（${weekday(k)}）作答 ${d.n || 0} 題${d.g ? `（含文法 ${d.g} 題）` : ''}${d.n ? `，正確率 ${pct(d.c, d.n)}%` : ''}`}); }
   const dmax = Math.max(...days.map(d => d.v)); let shown = false;
   days.forEach(d => { if(d.now || (!shown && d.v === dmax && d.v)){ d.show = true; if(!d.now) shown = true; } });
   CHART_TIPS['ch-days'] = days.map(d => d.tip);
@@ -1175,7 +1322,9 @@ function viewStats(){
     <h2>題型正確率</h2>
     <div class="panel">${types.length ? types.map(k => { const x = ty[k], tot = x.c + x.w, r = pct(x.c, tot);
       return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${TYPE_LABEL[k]}</span><span class="small">${r}%（${tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${r}%"></i></div></div>`; }).join('')
-      : '<p class="small" style="margin:14px 16px">還沒有作答紀錄。</p>'}</div>
+      : '<p class="small" style="margin:14px 16px">還沒有單字題的作答紀錄。</p>'}</div>
+
+    ${gStatsHTML()}
 
     <h2>拼寫錯在哪裡</h2>
     <div class="panel">${spT ? [['s','字首（前 1/3）'],['m','字中（中間 1/3）'],['e','字尾（後 1/3）']].map(([k, tt]) => `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${tt}</span><span class="small">${sp[k]} 次（${pct(sp[k], spT)}%）</span></div><div class="bar" style="margin-top:6px"><i style="width:${pct(sp[k], spT)}%"></i></div></div>`).join('')
@@ -1597,6 +1746,7 @@ function nextQ(){
 function closeSession(){
   if('speechSynthesis' in window) speechSynthesis.cancel();
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  if(GS){ clearInterval(GS.tick); clearTimeout(GS.timer); GS = null; }
   SES = null; $('#session').hidden = true; setLock('session', false); render();
 }
 function setHeader(){
@@ -1838,6 +1988,191 @@ function startCloze(){
   startSession([ClozePhase(ids)], {again: () => startCloze(), againLabel:'再練一組'});
 }
 
+/* ========== 文法練習（v1.7） ==========
+   與單字練習分開的流程：GS 為進行中的文法練習；作答後顯示中譯與解析，按「下一題」才繼續。
+   Part 5 模擬只標對錯並自動跳題（使用者確定），解析在完成畫面查看；模擬時不顯示類型，避免洩題。 */
+let GS = null;
+const GMODE_NAME = {cat:'依類型練習', mock:'Part 5 模擬', review:'錯題複習'};
+const fmtTime = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const gFull = q => q.sentence.replace(BLANK_RE, q.answer);
+/* 出題順序：先出沒做過的題，再出正確率低、較久沒做的題（同分隨機） */
+function gOrder(ids){
+  const fresh = [], seen = [];
+  shuffle(ids.slice()).forEach(id => { const p = G.prog[id]; (p && p.c + p.w ? seen : fresh).push(id); });
+  const acc = id => G.prog[id].c / (G.prog[id].c + G.prog[id].w);
+  seen.sort((a, b) => acc(a) - acc(b) || (G.prog[a].last || '').localeCompare(G.prog[b].last || ''));
+  return fresh.concat(seen);
+}
+function gBuild(mode, cats, count){
+  if(mode === 'review') return shuffle(gDueIds().sort((a, b) => G.prog[a].due.localeCompare(G.prog[b].due)).slice(0, count));
+  if(mode === 'mock'){
+    /* 各類型輪流取題，讓 30 題平均分散在各類型 */
+    const by = {}; gIds().forEach(id => { const c = GQ[id].cat; (by[c] || (by[c] = [])).push(id); });
+    const lists = shuffle(Object.keys(by)).map(c => gOrder(by[c])), out = [];
+    while(out.length < G_MOCK && lists.some(l => l.length)) lists.forEach(l => { if(out.length < G_MOCK && l.length) out.push(l.shift()); });
+    return shuffle(out);
+  }
+  const set = new Set(cats);
+  return shuffle(gOrder(gIds().filter(id => set.has(GQ[id].cat))).slice(0, count));
+}
+function openGrammarSheet(){
+  const gs = G.settings, cc = gCatCount(), {st} = gCatStats();
+  let mode = gs.mode, count = gs.count, timer = gs.timer;
+  let cats = new Set(gs.cats.filter(c => cc[c]));
+  if(!cats.size) cats = new Set(Object.keys(cc));
+  const avail = () => mode === 'mock' ? Math.min(G_MOCK, gIds().length)
+    : mode === 'review' ? Math.min(count, gDueIds().length)
+    : Math.min(count, [...cats].reduce((a, c) => a + (cc[c] || 0), 0));
+  const segHTML = (items, cur, key) => `<div class="seg" style="margin:0">${items.map(([k, t]) => `<button class="${String(cur) === String(k) ? 'on' : ''}" data-${key}="${k}">${t}</button>`).join('')}</div>`;
+  const countHTML = () => `<p class="small" style="margin:16px 2px 6px">題數</p>${segHTML(G_COUNTS.map(n => [n, `${n} 題`]), count, 'gc')}`;
+  const timerHTML = () => `<div class="panel" style="margin-top:14px"><div class="lbl"><div class="grow">顯示用時<div class="small">作答畫面上方顯示累計時間</div></div><button class="switch ${timer ? 'on' : ''}" data-gt="1" aria-pressed="${timer}"></button></div></div>`;
+  const draw = el => {
+    let h = segHTML([['cat','依類型'],['mock','Part 5 模擬'],['review','錯題複習']], mode, 'gm');
+    if(mode === 'cat'){
+      const allOn = GCATS.every(([k]) => !cc[k] || cats.has(k));
+      h += `<div class="row" style="justify-content:space-between;margin:16px 2px 6px"><span class="small">選擇類型（可多選）</span><button class="small" data-gall="1" style="color:var(--green);font-weight:600">${allOn ? '全不選' : '全選'}</button></div>
+        <div class="panel gcat">${GCATS.map(([k, t]) => { const x = st[k], tot = x ? x.c + x.w : 0;
+          return `<button class="item" data-gcat="${k}" ${cc[k] ? '' : 'disabled'}><span class="check ${cats.has(k) && cc[k] ? 'on' : ''}"></span><div class="grow"><div class="t">${t}</div>
+            <div class="d">${cc[k] || 0} 題${tot ? `・正確率 ${pct(x.c, tot)}%（${tot} 題）` : cc[k] ? '・還沒作答' : ''}</div></div></button>`; }).join('')}</div>`
+        + countHTML() + timerHTML();
+    } else if(mode === 'mock'){
+      const n = gIds().length;
+      h += `<div class="panel" style="padding:14px 16px;margin-top:16px"><p style="margin:0 0 6px;font-weight:600">各類型隨機混合 ${G_MOCK} 題，計時作答</p>
+        <p class="small" style="margin:0">作答時只標示對錯，約 1 秒後自動進入下一題；中譯與解析在結束後查看。參考標準：每題 ${G_SEC} 秒內（${G_MOCK} 題約 ${Math.round(G_MOCK * G_SEC / 60)} 分鐘）。</p>
+        ${n < G_MOCK ? `<p class="note" style="margin-top:8px">目前題庫只有 ${n} 題，會全部出完。</p>` : ''}</div>`;
+    } else {
+      const wb = gWrongIds(), due = gDueIds().length;
+      const next = wb.map(id => G.prog[id].due).filter(d => d > today()).sort()[0];
+      h += `<div class="panel" style="padding:14px 16px;margin-top:16px"><div class="stat-line" style="margin:2px 0 8px"><span><b>${wb.length}</b>錯題本</span><span><b>${due}</b>今天到期</span></div>
+        <p class="small" style="margin:0">答錯的題目隔天複習；答對後依序 ${G_GAPS[1]} 天、${G_GAPS[2]} 天後再複習，連續答對 ${G_OUT} 次移出錯題本。再答錯則從隔天重新開始。</p>
+        ${!due ? `<p class="note" style="margin-top:8px">${wb.length ? `今天沒有到期的錯題${next ? `，下一題在 ${mmdd2(next)} 到期` : ''}。` : '錯題本是空的。'}</p>` : ''}</div>`
+        + countHTML() + timerHTML();
+    }
+    el.querySelector('#gs-body').innerHTML = h;
+    const k = avail(), go = el.querySelector('#gs-go');
+    go.disabled = !k; go.textContent = k ? `開始（${k} 題）` : mode === 'review' ? '沒有到期的錯題' : '請選擇類型';
+  };
+  openSheet({title:'文法練習', right:'取消', onRight: () => closeSheet(),
+    body:`<div id="gs-body"></div>`, foot:`<button class="btn" id="gs-go">開始</button>`,
+    mount: el => {
+      draw(el);
+      el.querySelector('#gs-body').addEventListener('click', e => {
+        const b = e.target.closest('button'); if(!b || b.disabled) return;
+        if(b.dataset.gm) mode = b.dataset.gm;
+        else if(b.dataset.gc) count = +b.dataset.gc;
+        else if(b.dataset.gt) timer = !timer;
+        else if(b.dataset.gall){ const on = GCATS.every(([k]) => !cc[k] || cats.has(k)); cats = on ? new Set() : new Set(Object.keys(cc)); }
+        else if(b.dataset.gcat){ const k = b.dataset.gcat; cats.has(k) ? cats.delete(k) : cats.add(k); }
+        else return;
+        const y = el.querySelector('.sh-body').scrollTop; draw(el); el.querySelector('.sh-body').scrollTop = y;
+      });
+      el.querySelector('#gs-go').addEventListener('click', () => {
+        if(!avail()) return;
+        G.settings = {count, timer, mode, cats:[...cats]}; save('grammar');
+        closeSheet(); startGrammar(mode, [...cats], count);
+      });
+    }});
+}
+function startGrammar(mode, cats, count){
+  const list = gBuild(mode, cats, mode === 'mock' ? G_MOCK : count);
+  if(!list.length){ toast(mode === 'review' ? '今天沒有到期的錯題' : '選取的類型沒有題目'); render(); return; }
+  if(SES) closeSession();
+  GS = {mode, mock: mode === 'mock', review: mode === 'review', list, i:-1, q:null, ans:0, cor:0, res:[], outN:0,
+    start: Date.now(), clock: mode === 'mock' || G.settings.timer, again: () => startGrammar(mode, cats, count)};
+  $('#session').hidden = false; setLock('session', true);
+  if(GS.clock) GS.tick = setInterval(gHeader, 1000);
+  gNext();
+}
+function gHeader(){
+  if(!GS || GS.ended) return;
+  const q = GS.q, n = GS.list.length, done = GS.i + (q && q.done ? 1 : 0);
+  $('#s-label').textContent = GS.mock ? 'Part 5 模擬' : q ? GCAT_NAME[q.cat] : '文法練習';
+  $('#s-count').innerHTML = `${Math.min(GS.i + 1, n)} / ${n}${GS.clock ? `<span class="clock">　${fmtTime(Date.now() - GS.start)}</span>` : ''}`;
+  $('#s-bar').style.width = (n ? done / n * 100 : 0) + '%';
+}
+function gNext(){
+  if(!GS || GS.ended || (GS.q && !GS.q.done)) return;
+  clearTimeout(GS.timer);
+  do GS.i++; while(GS.i < GS.list.length && !GQ[GS.list[GS.i]]);
+  if(GS.i >= GS.list.length) return gEnd();
+  GS.q = Object.assign({}, GQ[GS.list[GS.i]], {done:false});
+  const q = GS.q, [before, after = ''] = q.sentence.split(BLANK_RE);
+  const body = $('#s-body');
+  body.innerHTML = `${GS.mock ? '' : `<div class="g-meta"><span class="tag">${esc(GCAT_NAME[q.cat])}</span>${q.lvl === 2 ? '<span class="tag lv2">進階</span>' : ''}</div>`}
+    <div class="cloze g-sent">${esc(before)}<span class="blank" id="g-blank">&nbsp;</span>${esc(after)}</div>
+    <div class="opts">${q.options.map((o, i) => `<button class="opt en" data-act="gopt" data-i="${i}"><span class="k">(${'ABCD'[i]})</span>${esc(o)}</button>`).join('')}</div>
+    <div id="g-exp"></div>`;
+  body.scrollTop = 0;
+  $('#s-foot').innerHTML = '';
+  gHeader();
+}
+function gExpHTML(q, ok, note){
+  return `<div class="fb gexp">
+    <div class="verdict ${ok ? 'ok' : 'no'}"><span>${ok ? '答對了' : '答錯了'}</span><small>${esc(note)}</small></div>
+    ${ok ? '' : `<div class="yours">你選 <b>${esc(q.picked)}</b>，正確答案 <b style="color:var(--ok)">${esc(q.answer)}</b></div>`}
+    <div class="row"><div class="zh" style="flex:1">${esc(q.zh)}</div>${spkBtn(gFull(q), true)}</div>
+    <div class="lb">解析</div><div class="tx">${esc(q.explain)}</div></div>`;
+}
+function gAnswer(i){
+  const q = GS && GS.q; if(!q || q.done || GS.ended || !q.options[i]) return;
+  q.done = true; q.picked = q.options[i];
+  const ok = q.picked === q.answer;
+  GS.ans++; if(ok) GS.cor++;
+  const note = gRecord(q.gid, ok, GS.review);
+  if(GS.review && ok && !G.prog[q.gid].wrong) GS.outN++;
+  GS.res.push({gid:q.gid, cat:q.cat, ok, picked:q.picked});
+  document.querySelectorAll('#s-body .opt').forEach((b, k) => { b.disabled = true;
+    if(q.options[k] === q.answer) b.classList.add('right'); else if(k === i) b.classList.add('wrong'); });
+  const bl = $('#g-blank'); if(bl){ bl.textContent = q.answer; bl.classList.add(ok ? 'good' : 'bad'); }
+  const last = !GS.list.slice(GS.i + 1).some(id => GQ[id]);
+  if(GS.mock){
+    $('#s-foot').innerHTML = `<button class="vbar ${ok ? 'ok' : 'no'}" data-act="gnext"><span>${ok ? '答對了' : '答錯了'}${ok ? '' : `<span class="ans">${esc(q.answer)}</span>`}</span><small>${last ? '' : '解析在結束後查看'}</small></button>`;
+    GS.timer = setTimeout(gNext, ok ? 800 : 1500);
+  } else {
+    $('#g-exp').innerHTML = gExpHTML(q, ok, note);
+    $('#s-foot').innerHTML = `<button class="btn" data-act="gnext">${last ? '看結果' : '下一題'}</button>`;
+    setTimeout(() => { const e = $('#g-exp .gexp'); if(e) e.scrollIntoView({block:'nearest', behavior:'smooth'}); }, 30);
+  }
+  gHeader();
+}
+function gEnd(){
+  const s = GS; s.ended = true; clearInterval(s.tick); clearTimeout(s.timer);
+  const ms = Date.now() - s.start, acc = s.ans ? Math.round(s.cor / s.ans * 100) : 0, avg = s.ans ? Math.round(ms / 1000 / s.ans) : 0;
+  $('#s-label').textContent = '完成'; $('#s-count').textContent = ''; $('#s-bar').style.width = '100%';
+  const per = {}; s.res.forEach(r => { const x = per[r.cat] || (per[r.cat] = {c:0, w:0}); r.ok ? x.c++ : x.w++; });
+  const wrong = s.res.filter(r => !r.ok && GQ[r.gid]);
+  $('#s-body').innerHTML = `<div class="summary"><div class="big">${acc}%</div><p class="sub" style="margin-top:8px">${GMODE_NAME[s.mode]}・本次正確率</p></div>
+    <div class="sumgrid">
+      <div><b>${s.cor} / ${s.ans}</b><span>答對題數</span></div>
+      ${s.review ? `<div><b>${s.outN}</b><span>移出錯題本</span></div>` : `<div><b>${s.ans - s.cor}</b><span>加入錯題本</span></div>`}
+      ${s.clock ? `<div><b class="clock">${fmtTime(ms)}</b><span>總用時</span></div><div><b>${avg} 秒</b><span>平均每題（標準 ${G_SEC} 秒內）</span></div>` : ''}
+    </div>
+    ${s.clock && s.ans ? `<p class="small" style="text-align:center;margin:-8px 0 0;color:${avg > G_SEC ? 'var(--brass)' : 'var(--ok)'}">${avg > G_SEC ? `平均每題超過 ${G_SEC} 秒，可以多練習加快速度。` : `速度在 ${G_SEC} 秒標準內。`}</p>` : ''}
+    <h2 style="font-size:17px">各類型對錯</h2>
+    <div class="panel">${GCATS.filter(([k]) => per[k]).map(([k, t]) => `<div class="lbl"><span>${t}</span><span class="small">對 ${per[k].c}・錯 ${per[k].w}</span></div>`).join('')}</div>
+    ${wrong.length ? `<h2 style="font-size:17px">答錯的題目</h2><p class="small" style="margin:-4px 2px 8px">點題目查看答案、中譯與解析。</p>
+      <div class="panel gwl">${wrong.map(r => { const q = GQ[r.gid];
+        return `<button class="item" data-act="gwl"><div class="grow"><div class="small">${esc(GCAT_NAME[q.cat])}</div><div class="d">${esc(q.sentence)}</div></div>${CHEV}</button>
+          <div hidden>${gExpHTML(Object.assign({}, q, {picked:r.picked}), false, '')}</div>`; }).join('')}</div>`
+      : `<p class="small" style="text-align:center;margin-top:18px">這次全部答對了。</p>`}`;
+  $('#s-body').scrollTop = 0;
+  $('#s-foot').innerHTML = `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="gagain">再練一組</button></div>`;
+}
+function gStatsHTML(){
+  const {st, n, c} = gCatStats(), wb = gWrongIds().length, due = gDueIds().length;
+  const rows = GCATS.filter(([k]) => st[k] && st[k].c + st[k].w).map(([k, t]) => { const x = st[k], tot = x.c + x.w; return {k, t, tot, acc: x.c / tot}; })
+    .sort((a, b) => a.acc - b.acc || b.tot - a.tot);
+  const weak = rows.find(r => r.tot >= 5);
+  return `<h2>文法練習</h2>
+    <div class="panel">
+      <div class="lbl"><div class="grow">錯題本<div class="small">${wb ? (due ? `今天到期 ${due} 題` : '今天沒有到期的題目') : '答錯的題目會放進來'}</div></div><span>${wb} 題</span></div>
+      ${rows.length ? rows.map(r => { const p = Math.round(r.acc * 100);
+        return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${r.t}${weak && weak.k === r.k ? '<span class="tag weak">最弱</span>' : ''}</span><span class="small">${p}%（${r.tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${p}%"></i></div></div>`; }).join('')
+        : '<p class="small" style="margin:14px 16px">還沒有文法作答紀錄。</p>'}
+    </div>
+    ${n ? `<p class="small" style="margin:8px 4px 0">累計作答 ${n} 題，正確率 ${pct(c, n)}%。依正確率由低到高排列；作答 5 題以上的類型才會標示「最弱」。</p>` : ''}`;
+}
+
 /* ========== 事件 ========== */
 async function readFile(){
   return new Promise(res => {
@@ -1879,12 +2214,26 @@ async function doImportQuestions(text){
     toast(`題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
   }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
 }
+/* 匯入文法題目（v1.7） */
+async function doImportGrammar(text){
+  const out = $('#gimport-result');
+  try{
+    const r = await importGrammar(parseJSON(text));
+    out.style.color = '';
+    out.textContent = `已放進文法題庫：新增 ${r.added} 題，更新 ${r.updated} 題`
+      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
+    const ta = $('#gimport-text'); if(ta) ta.value = '';
+    updateGbankInfo();
+    toast(`文法題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
+  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
+}
 async function doRestore(text){
   try{
     const obj = parseJSON(text);
     if(!confirm('還原會以備份內容取代目前所有資料，確定要還原嗎？')) return;
-    const qn = await restoreBackup(obj); closeSheet(); render();
-    toast(qn == null ? '已還原備份（舊版備份不含題庫，題庫維持不變）' : `已還原備份（題庫 ${qn} 題）`);
+    const r = await restoreBackup(obj); closeSheet(); render();
+    const parts = [r.qn == null ? '克漏字題庫維持不變' : `克漏字題庫 ${r.qn} 題`, r.gn == null ? '文法題庫與文法進度維持不變' : `文法題庫 ${r.gn} 題`];
+    toast(`已還原備份（${parts.join('，')}）`);
   }catch(e){ alert(e.message); render(); }
 }
 
@@ -1972,6 +2321,19 @@ const ACT = {
     try{ await qReplaceAll([]); updateQbankInfo(); const out = $('#qimport-result'); if(out) out.textContent = ''; toast('已清空題庫'); }
     catch(e){ toast('清空題庫失敗'); }
   },
+  'gimport': () => { const t = $('#gimport-text').value.trim(); if(!t) return toast('請先貼上文法題 JSON 或選擇檔案'); doImportGrammar(t); },
+  'gimport-file': async () => { const t = await readFile(); if(t) doImportGrammar(t); },
+  'gclear': async () => {
+    const n = gIds().length; if(!n) return;
+    if(!confirm(`確定要清空文法題庫（${n} 題）嗎？作答紀錄與錯題本會保留，重新匯入同 id 的題目後即可接續。單字與其他資料不受影響。`)) return;
+    try{ await gReplaceAll([]); updateGbankInfo(); const out = $('#gimport-result'); if(out) out.textContent = ''; toast('已清空文法題庫'); }
+    catch(e){ toast('清空文法題庫失敗'); }
+  },
+  'grammar-open': () => { if(!gIds().length) return toast('文法題庫是空的，請先到設定頁匯入題目'); openGrammarSheet(); },
+  gopt: el => gAnswer(+el.dataset.i),
+  gnext: () => gNext(),
+  gagain: () => { const f = GS && GS.again; closeSession(); if(f) f(); },
+  gwl: el => { const box = el.nextElementSibling; if(box) box.hidden = !box.hidden; },
   'backup-export': () => exportBackup(),
   'export-tag': el => { EXPORT_TAG = el.dataset.k; render(); },
   'export-words': () => exportWords(EXPORT_TAG),
@@ -1982,14 +2344,18 @@ const ACT = {
     foot:`<button class="btn" data-act="restore-go">還原</button>`}),
   'restore-go': () => { const t = $('#restore-text').value.trim(); if(t) doRestore(t); },
   'reset-all': async () => {
-    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定、紀錄與克漏字題庫。建議先匯出備份。確定繼續？')) return;
+    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定、紀錄、克漏字題庫、文法題庫與文法練習進度。建議先匯出備份。確定繼續？')) return;
     if(str(prompt('請輸入「重設」兩個字以確認')) !== '重設') return toast('已取消');
     Object.values(K).forEach(k => store.del(k)); loadAll(); applyTheme();
     try{ await QLOAD; await qReplaceAll([]); }catch(e){}
+    try{ await gReplaceAll([]); }catch(e){}
     TAB = 'home'; render(); toast('已全部重設');
   },
   /* 練習中 */
-  quit: () => { if(!SES || !SES.ans || confirm('要結束這次練習嗎？已作答的進度都已儲存。')) closeSession(); },
+  quit: () => {
+    if(GS){ if(GS.ended || !GS.ans || confirm('要結束這次練習嗎？已作答的紀錄都已儲存。')) closeSession(); return; }
+    if(!SES || !SES.ans || confirm('要結束這次練習嗎？已作答的進度都已儲存。')) closeSession();
+  },
   'quit-now': () => closeSession(),
   again: () => { const f = SES.opts.again; closeSession(); f(); },
   next: () => { if(SES && !SES.ended && SES.q && SES.q.done) nextQ(); },
