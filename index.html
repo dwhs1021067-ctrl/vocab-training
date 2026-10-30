@@ -301,6 +301,53 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .chart .col.now .cl{color:var(--ink);font-weight:600}
 .cap{margin:8px 4px 2px;min-height:20px}
 .item:disabled{opacity:.6}
+/* 閱讀練習（v1.8） */
+#session.reading #s-foot{max-height:56%;overflow-y:auto;border-top:1px solid var(--line);background:var(--surface);padding-top:8px;-webkit-overflow-scrolling:touch}
+.rref{font-size:13px;color:var(--muted);margin:2px 0 10px;font-family:var(--serif);font-style:italic}
+.rtabs{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto}
+.rtabs button{flex:none;padding:6px 12px;border-radius:18px;border:1px solid var(--line);font-size:14px;background:var(--surface)}
+.rtabs button.on{background:var(--green);color:var(--on-green);border-color:var(--green)}
+.rdoc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-family:var(--serif);font-size:16.5px;line-height:1.65;overflow-wrap:break-word}
+.rdoc p{margin:0 0 10px}
+.rdoc>p:last-child{margin-bottom:0}
+.rkind{font-family:var(--sans);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.rh{font-size:14.5px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:10px;line-height:1.5}
+.rh b{font-family:var(--sans);font-weight:600;font-size:13px;color:var(--muted)}
+.rt{overflow-x:auto;margin:0 0 10px}
+.rt table{border-collapse:collapse;font-size:14.5px;min-width:100%;line-height:1.45}
+.rt th,.rt td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.rt th{background:var(--paper);font-family:var(--sans);font-size:13px}
+.cl{margin:0 0 10px}
+.cn{font-family:var(--sans);font-weight:600;font-size:13.5px}
+.cn span{font-weight:400;color:var(--muted);margin-left:4px}
+.im{font-family:var(--sans);font-size:12px;color:var(--brass);font-weight:700;margin:0 2px}
+.rb{display:inline-block;min-width:3.4em;border-bottom:2px solid var(--green);text-align:center;padding:0 4px;margin:0 2px;font-family:var(--sans);font-size:13px;color:var(--muted);line-height:1.5}
+.rb.fill{color:var(--ink);font-family:var(--serif);font-size:16px}
+.rb.on{background:var(--green-soft)}
+.rb.good{border-color:var(--ok);color:var(--ok);font-family:var(--serif);font-size:16px}
+.rb.bad{border-color:var(--red);color:var(--red);font-family:var(--serif);font-size:16px}
+.rzh{margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--paper);border:1px solid var(--line);font-size:15px;line-height:1.75}
+.rzh p{margin:0 0 8px}
+.rzh p:last-child{margin-bottom:0}
+.rzh .rkind{margin-bottom:4px}
+.rq-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;color:var(--muted);padding:2px 0 8px;width:100%;text-align:left}
+.rdots{display:flex;gap:7px;flex-wrap:wrap}
+.rdots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.rdots i.a{background:var(--green)}
+.rdots i.ok{background:var(--ok)}
+.rdots i.no{background:var(--red)}
+.rdots i.cur{outline:2px solid var(--green);outline-offset:2px}
+.rq-q{font-size:16px;line-height:1.5;margin-bottom:10px}
+.rq .opts{gap:8px}
+.rq .opt{min-height:44px;padding:9px 14px;font-size:15.5px}
+.rq .opt.sel{border-color:var(--green);background:var(--green-soft)}
+.rq.fold .rq-q,.rq.fold .opts,.rq.fold .rexp{display:none}
+.rexp{margin-top:10px;font-size:15px;line-height:1.7}
+.rexp .lb{font-size:13px;font-weight:600;color:var(--green);margin:8px 0 2px}
+.rnav{display:flex;gap:10px;margin-top:12px}
+.rnav .btn{min-height:46px}
+.rlist .item{align-items:flex-start}
+.rlist .item .d{white-space:normal}
 /* 文法練習（v1.7） */
 .g-meta{display:flex;align-items:center;gap:6px;margin:2px 0 0}
 .g-meta .tag{margin:0}
@@ -347,9 +394,9 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.7.0';
-const BACKUP_VERSION = 3;        /* v1.6 起備份含克漏字題庫；v1.7 起含文法題庫與文法練習進度 */
-const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log', grammar:'vocab_grammar'};
+const APP_VERSION = '1.8.0';
+const BACKUP_VERSION = 4;        /* v1.6 起含克漏字題庫；v1.7 起含文法題庫與進度；v1.8 起含閱讀題庫與進度 */
+const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log', grammar:'vocab_grammar', reading:'vocab_reading'};
 const DEF_SETTINGS = {dailyNew:10, batchSize:7, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:20, tagMigrated:false, speakOnCorrect:true, drawV2:false};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
@@ -382,6 +429,8 @@ const store = {
 let W = {}, B = [], P = {}, POOL = [], S = {}, L = {};
 /* 文法練習進度（v1.7）：prog 為每題作答紀錄與錯題本狀態，settings 為練習設定 */
 let G = {prog:{}, settings:{}};
+/* 閱讀練習進度（v1.8）：prog 為每篇的作答紀錄，mocks 為閱讀模擬成績 */
+let R = {prog:{}, mocks:[], settings:{}};
 
 const str = v => v == null ? '' : String(v).trim();
 const clampInt = (v, lo, hi, d) => { v = parseInt(v, 10); return isNaN(v) ? d : Math.min(hi, Math.max(lo, v)); };
@@ -431,6 +480,7 @@ function loadAll(){
   W = store.get(K.words, {}); B = store.get(K.books, []); P = store.get(K.progress, {});
   POOL = store.get(K.pool, []); S = store.get(K.settings, {}); L = store.get(K.log, {});
   G = normGrammarData(store.get(K.grammar, {}));
+  R = normReadingData(store.get(K.reading, {}));
   normalizeAll(); migrateTags(); save('settings');
 }
 /* 分組標籤（v1.1） */
@@ -448,10 +498,10 @@ function migrateTags(){
   return n;
 }
 function save(...keys){
-  const map = {words:W, books:B, progress:P, pool:POOL, settings:S, log:L, grammar:G};
+  const map = {words:W, books:B, progress:P, pool:POOL, settings:S, log:L, grammar:G, reading:R};
   keys.forEach(k => store.set(K[k], map[k]));
 }
-const saveAll = () => save('words','books','progress','pool','settings','log','grammar');
+const saveAll = () => save('words','books','progress','pool','settings','log','grammar','reading');
 const THEME_BG = {light:'#F5F7F5', dark:'#1D2321'};
 function applyTheme(){
   const r = document.documentElement, t = S.theme || 'auto';
@@ -467,11 +517,12 @@ function applyTheme(){
    localStorage 每個網址只有約 5 MB，題庫改存 IndexedDB（資料庫 vocab_db、資料表 questions）。
    程式啟動時把題庫全部讀進記憶體（Q），之後出題都從記憶體取；寫入時同步更新兩邊。
    無法使用 IndexedDB 時（例如預覽視窗），題庫只存在記憶體，不會保存。 */
-const Q_DB = 'vocab_db', Q_STORE = 'questions', G_STORE = 'grammar';
-const DB_VERSION = 2;            /* v1.7：版本 2 新增 grammar 資料表（文法題庫），questions 不動 */
+const Q_DB = 'vocab_db', Q_STORE = 'questions', G_STORE = 'grammar', R_STORE = 'reading';
+const DB_VERSION = 3;            /* v1.7：版本 2 新增 grammar 資料表；v1.8：版本 3 新增 reading 資料表（閱讀題庫） */
 const Q_KINDS = ['meaning','form','colloc'];
 let Q = {}, QBY = {}, QREADY = false, QDB = null, QLOAD = null;
 let GQ = {};                     /* 文法題庫（v1.7），以 gid 為 key，與克漏字題庫一起在啟動時讀進記憶體 */
+let RB = {};                     /* 閱讀題庫（v1.8），以 rid 為 key */
 const qsOf = id => QBY[id] || [];
 function qIndex(){ QBY = {}; for(const k in Q){ const x = Q[k]; (QBY[x.wordId] || (QBY[x.wordId] = [])).push(x); } }
 function idbOpen(){
@@ -483,7 +534,8 @@ function idbOpen(){
       const r = indexedDB.open(Q_DB, DB_VERSION);
       r.onupgradeneeded = () => { const db = r.result;
         if(!db.objectStoreNames.contains(Q_STORE)) db.createObjectStore(Q_STORE, {keyPath:'qid'});
-        if(!db.objectStoreNames.contains(G_STORE)) db.createObjectStore(G_STORE, {keyPath:'gid'}); };
+        if(!db.objectStoreNames.contains(G_STORE)) db.createObjectStore(G_STORE, {keyPath:'gid'});
+        if(!db.objectStoreNames.contains(R_STORE)) db.createObjectStore(R_STORE, {keyPath:'rid'}); };
       r.onsuccess = () => { const db = r.result; db.onversionchange = () => db.close(); fin(db); };
       r.onerror = () => fin(null);
       r.onblocked = () => fin(null);
@@ -502,6 +554,8 @@ async function qInit(){
     catch(e){ toast('讀取克漏字題庫失敗'); }
     try{ (await idbAll(G_STORE)).forEach(x => { if(x && x.gid) GQ[x.gid] = x; }); }
     catch(e){ toast('讀取文法題庫失敗'); }
+    try{ (await idbAll(R_STORE)).forEach(x => { if(x && x.rid) RB[x.rid] = x; }); }
+    catch(e){ toast('讀取閱讀題庫失敗'); }
   }
   qIndex(); QREADY = true;
 }
@@ -562,13 +616,14 @@ function qbankInfo(){
 function updateQbankInfo(){
   const p = $('#qbank-info'); if(p) p.textContent = qbankInfo();
   const c = $('[data-act=qclear]'); if(c) c.disabled = !Object.keys(Q).length;
-  updateGbankInfo();
+  updateGbankInfo(); updateRbankInfo();
 }
 
 /* ========== 文法題庫（v1.7，多益 Part 5 文法題，存在 IndexedDB 的 grammar 資料表） ==========
    題目綁的是文法類型（cat），不綁單字；作答紀錄與錯題本存在 localStorage 的 vocab_grammar。 */
 const GCATS = [['pos','詞性判斷'],['tense','動詞時態'],['voice','主被動語態'],['agree','主詞動詞一致'],['pron','代名詞'],['prepconj','介系詞與連接詞'],
-  ['conj','連接詞與轉折副詞'],['relative','關係詞'],['participle','分詞'],['verbal','動名詞與不定詞'],['compare','比較級與最高級'],['mood','假設語氣、倒裝與助動詞']];
+  ['conj','連接詞與轉折副詞'],['relative','關係詞'],['participle','分詞'],['verbal','動名詞與不定詞'],['compare','比較級與最高級'],['mood','假設語氣、倒裝與助動詞'],
+  ['quant','數量詞與限定詞'],['confuse','易混淆字']];   /* v1.8 新增 quant、confuse */
 const GCAT_NAME = Object.fromEntries(GCATS);
 const G_COUNTS = [10, 20, 30];       /* 每次題數 */
 const G_MOCK = 30;                   /* Part 5 模擬固定 30 題 */
@@ -933,7 +988,7 @@ function importWords(arr){
 /* 呼叫前須先 await QLOAD，確保題庫已讀進記憶體 */
 function makeBackup(){
   return {app:'vocab', backupVersion:BACKUP_VERSION, appVersion:APP_VERSION, exportedAt:new Date().toISOString(),
-    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L, questions:Object.values(Q), grammar:Object.values(GQ), grammarProg:G}};
+    data:{words:W, books:B, progress:P, wrongPool:POOL, settings:S, log:L, questions:Object.values(Q), grammar:Object.values(GQ), grammarProg:G, reading:Object.values(RB), readingProg:R}};
 }
 /* 還原：取代所有資料。備份含克漏字題庫（v2 起）時一併取代；含文法題庫與進度（v3 起）時一併取代。
    舊版備份缺少的部分維持原狀。回傳 {qn 克漏字題數, gn 文法題數}，備份沒有該部分時為 null */
@@ -944,11 +999,14 @@ async function restoreBackup(obj){
   const d = obj.data, hasG = Array.isArray(d.grammar);
   W = d.words || {}; B = d.books || []; P = d.progress || {}; POOL = d.wrongPool || []; S = d.settings || {}; L = d.log || {};
   if(hasG || (d.grammarProg && typeof d.grammarProg === 'object')) G = normGrammarData(d.grammarProg);
+  const hasR = Array.isArray(d.reading);
+  if(hasR || (d.readingProg && typeof d.readingProg === 'object')) R = normReadingData(d.readingProg);
   normalizeAll(); migrateTags(); updateFinished(); saveAll(); applyTheme();
-  const out = {qn:null, gn:null};
+  const out = {qn:null, gn:null, rn:null};
   try{
     if(Array.isArray(d.questions)){ const list = d.questions.map(normQ).filter(x => x.q).map(x => x.q); await qReplaceAll(list); out.qn = list.length; }
     if(hasG){ const list = d.grammar.map(normG).filter(x => x.q).map(x => x.q); await gReplaceAll(list); out.gn = list.length; }
+    if(hasR){ const list = d.reading.map(normR).filter(x => x.r).map(x => x.r); await rReplaceAll(list); out.rn = list.length; }
   }catch(e){ throw new Error('單字與進度已還原，但題庫寫入失敗：' + ((e && e.message) || e)); }
   return out;
 }
@@ -1066,7 +1124,7 @@ function viewHome(){
   if(!n) return `<p class="sub">${dateStr}</p><h1>練習</h1>
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
     <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>
-    ${gIds().length ? grammarCard() : ''}`;
+    ${gIds().length ? grammarCard() : ''}${rIds('all').length ? readingCard() : ''}`;
   const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), cz = clozeIds().length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const nw = tl.nw || 0, newLeft = Math.max(0, S.dailyNew - nw), rv = tl.rv || 0;
@@ -1097,6 +1155,7 @@ function viewHome(){
     <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
       <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通的字隨機出題（題庫題目與原例句），選出正確的答案，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句與題庫題目練習。'}</div></button>
     ${grammarCard()}
+    ${readingCard()}
 `;
 }
 /* 練習頁的「文法練習」入口（v1.7）：顯示題庫題數與錯題本題數；題庫為空時停用 */
@@ -1210,6 +1269,14 @@ function viewSettings(){
       <div class="result" id="gimport-result"></div>
       <button class="btn sm danger" data-act="gclear" style="margin-top:12px" ${gIds().length ? '' : 'disabled'}>清空文法題庫</button>
     </div>
+    <h2 id="rbank-sec">閱讀題庫</h2>
+    <div class="panel" style="padding:14px 16px">
+      <p class="small" id="rbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(rbankInfo())}</p>
+      <textarea class="code" id="rimport-text" placeholder="貼上 Claude 提供的閱讀題 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="rimport-file">選擇檔案</button><button class="btn sm" data-act="rimport">匯入題目</button></div>
+      <div class="result" id="rimport-result"></div>
+      <button class="btn sm danger" data-act="rclear" style="margin-top:12px" ${rIds('all').length ? '' : 'disabled'}>清空閱讀題庫</button>
+    </div>
     <h2>手動新增的單字</h2>
     <div class="panel" style="padding:14px 16px">
       <p class="small" style="margin:0 0 10px">目前有 ${manualIds().length} 個手動新增的字。複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入。</p>
@@ -1217,7 +1284,7 @@ function viewSettings(){
     </div>
     <h2>備份</h2>
     <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄、克漏字題庫、文法題庫與文法練習進度。換手機或換網址前請先匯出。</p>
+      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄、克漏字題庫、文法題庫、閱讀題庫，以及文法與閱讀的練習進度。換手機或換網址前請先匯出。</p>
       <div class="row"><button class="btn sm" data-act="backup-export">匯出備份檔</button><button class="btn sm ghost" data-act="backup-copy">複製備份文字</button></div>
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="backup-import-file">從檔案還原</button><button class="btn sm ghost" data-act="backup-import-text">貼上文字還原</button></div>
     </div>
@@ -1255,7 +1322,7 @@ function colsHTML(id, cols, cap){
 const CHART_TIPS = {};
 function viewStats(){
   const ids = Object.keys(W);
-  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>${Object.keys(G.prog).length ? gStatsHTML() : ''}`;
+  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>${Object.keys(G.prog).length ? gStatsHTML() : ''}${Object.keys(R.prog).length || R.mocks.length ? rStatsHTML() : ''}`;
   const t = today(), all = progressOf(ids);
   let n = 0, c = 0; const ty = {}, sp = {s:0, m:0, e:0};
   Object.values(L).forEach(d => { n += d.n || 0; c += d.c || 0;
@@ -1264,7 +1331,7 @@ function viewStats(){
   /* 近 14 天作答 */
   const days = [];
   for(let i = 13; i >= 0; i--){ const k = addDays(t, -i), d = L[k] || {};
-    days.push({v: d.n || 0, now: i === 0, label: i === 0 ? '今' : String(+k.slice(8)), tip: `${mmdd2(k)}（${weekday(k)}）作答 ${d.n || 0} 題${d.g ? `（含文法 ${d.g} 題）` : ''}${d.n ? `，正確率 ${pct(d.c, d.n)}%` : ''}`}); }
+    days.push({v: d.n || 0, now: i === 0, label: i === 0 ? '今' : String(+k.slice(8)), tip: `${mmdd2(k)}（${weekday(k)}）作答 ${d.n || 0} 題${d.g || d.r ? `（含${[d.g && `文法 ${d.g} 題`, d.r && `閱讀 ${d.r} 題`].filter(Boolean).join('、')}）` : ''}${d.n ? `，正確率 ${pct(d.c, d.n)}%` : ''}`}); }
   const dmax = Math.max(...days.map(d => d.v)); let shown = false;
   days.forEach(d => { if(d.now || (!shown && d.v === dmax && d.v)){ d.show = true; if(!d.now) shown = true; } });
   CHART_TIPS['ch-days'] = days.map(d => d.tip);
@@ -1325,6 +1392,7 @@ function viewStats(){
       : '<p class="small" style="margin:14px 16px">還沒有單字題的作答紀錄。</p>'}</div>
 
     ${gStatsHTML()}
+    ${rStatsHTML()}
 
     <h2>拼寫錯在哪裡</h2>
     <div class="panel">${spT ? [['s','字首（前 1/3）'],['m','字中（中間 1/3）'],['e','字尾（後 1/3）']].map(([k, tt]) => `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${tt}</span><span class="small">${sp[k]} 次（${pct(sp[k], spT)}%）</span></div><div class="bar" style="margin-top:6px"><i style="width:${pct(sp[k], spT)}%"></i></div></div>`).join('')
@@ -1747,6 +1815,8 @@ function closeSession(){
   if('speechSynthesis' in window) speechSynthesis.cancel();
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if(GS){ clearInterval(GS.tick); clearTimeout(GS.timer); GS = null; }
+  if(RS){ clearInterval(RS.tick); RS = null; }
+  $('#session').classList.remove('reading');
   SES = null; $('#session').hidden = true; setLock('session', false); render();
 }
 function setHeader(){
@@ -2173,6 +2243,475 @@ function gStatsHTML(){
     ${n ? `<p class="small" style="margin:8px 4px 0">累計作答 ${n} 題，正確率 ${pct(c, n)}%。依正確率由低到高排列；作答 5 題以上的類型才會標示「最弱」。</p>` : ''}`;
 }
 
+/* ========== 閱讀練習（v1.8，多益 Part 6 段落填空、Part 7 閱讀理解，存在 IndexedDB 的 reading 資料表） ==========
+   一組題目（rid）包含 1～3 篇文章（docs）與 2～5 題（qs）。Part 6 的文章以 {1}～{4} 標示空格；
+   Part 7 的句子插入題以 [1]～[4] 標示位置。作答時一篇做完才交卷看解析；閱讀模擬照實考 100 題、75 分鐘。 */
+const R_KINDS = {email:'e-mail', letter:'letter', memo:'memo', notice:'notice', announcement:'announcement', article:'article', ad:'advertisement',
+  webpage:'Web page', form:'form', chat:'online chat discussion', text:'text-message chain', review:'review', schedule:'schedule', invoice:'invoice',
+  brochure:'brochure', report:'report', information:'information', agenda:'agenda', receipt:'receipt', coupon:'coupon', list:'list', label:'label', survey:'survey'};
+const R_KIND_ZH = {email:'電子郵件', letter:'信件', memo:'備忘錄', notice:'公告', announcement:'通告', article:'文章', ad:'廣告', webpage:'網頁', form:'表單',
+  chat:'線上聊天', text:'簡訊', review:'評論', schedule:'時程表', invoice:'請款單', brochure:'手冊', report:'報告', information:'資訊', agenda:'議程',
+  receipt:'收據', coupon:'優惠券', list:'清單', label:'標示', survey:'問卷'};
+const R_QT = [['word','字彙'],['grammar','文法'],['conn','連接詞與轉折語'],['sentence','句子填空'],['main','主旨與目的'],['detail','細節'],
+  ['infer','推論'],['not','是非判斷'],['vocab','同義字'],['insert','句子插入'],['intent','說話意圖'],['cross','跨篇整合']];
+const R_QT_NAME = Object.fromEntries(R_QT);
+const R_SETS = {single:'單篇', double:'雙篇', triple:'三篇'};
+const R_GROUP = {'6':'Part 6 段落填空', '7s':'Part 7 單篇', '7m':'Part 7 多篇'};
+const R_MODES = {p6:'Part 6', p7s:'Part 7 單篇', p7m:'Part 7 多篇', mock:'閱讀模擬'};
+const R_COUNTS = {p6:[1,2,4], p7s:[1,3,5], p7m:[1,2,3]};
+const R_MOCK_MS = 75 * 60 * 1000;   /* 閱讀模擬限時 75 分鐘 */
+const R_MOCK_P5 = 30, R_MOCK_P5_WORD = 12, R_MOCK_P6 = 4, R_MOCK_P7S = 29, R_MOCK_P7D = 2, R_MOCK_P7T = 3;
+const DEF_RSET = {mode:'p6', count:{p6:2, p7s:3, p7m:1}, timer:false};
+function normReadingData(x){
+  x = x && typeof x === 'object' && !Array.isArray(x) ? x : {};
+  const prog = {}, src = x.prog && typeof x.prog === 'object' ? x.prog : {};
+  for(const rid in src){ const p = src[rid]; if(!p || typeof p !== 'object') continue;
+    prog[rid] = {n: +p.n || 0, last: str(p.last), g: ['6','7s','7m'].includes(p.g) ? p.g : '7s',
+      qs: Array.isArray(p.qs) ? p.qs.map(q => q && typeof q === 'object' ? {c: +q.c || 0, w: +q.w || 0, t: R_QT_NAME[q.t] ? q.t : 'detail'} : null) : []}; }
+  const mocks = Array.isArray(x.mocks) ? x.mocks.filter(m => m && m.d).slice(-20) : [];
+  const st = Object.assign({}, DEF_RSET, x.settings && typeof x.settings === 'object' ? x.settings : {});
+  const cnt = Object.assign({}, DEF_RSET.count, st.count && typeof st.count === 'object' ? st.count : {});
+  for(const k in R_COUNTS) if(!R_COUNTS[k].includes(+cnt[k])) cnt[k] = DEF_RSET.count[k]; else cnt[k] = +cnt[k];
+  return {prog, mocks, settings:{mode: R_MODES[st.mode] ? st.mode : 'p6', count: cnt, timer: st.timer === true}};
+}
+const rGroupOf = r => r.part === 6 ? '6' : r.set === 'single' ? '7s' : '7m';
+/* 題目格式檢查（與 check_reading.py 相同的主要規則） */
+function normR(r){
+  if(!r || typeof r !== 'object' || Array.isArray(r)) return {err:'不是物件'};
+  const rid = str(r.rid), part = +r.part;
+  if(!rid) return {err:'缺少 rid'};
+  if(part !== 6 && part !== 7) return {err:'part 必須是 6 或 7'};
+  const set = part === 6 ? 'single' : str(r.set), need = {single:1, double:2, triple:3}[set];
+  if(!need) return {err:'set 必須是 single、double 或 triple'};
+  const docs = Array.isArray(r.docs) ? r.docs : [];
+  if(docs.length !== need) return {err:`文章數應為 ${need} 篇`};
+  const D = [];
+  for(const d of docs){
+    if(!d || typeof d !== 'object') return {err:'文章格式錯誤'};
+    const body = String(d.body == null ? '' : d.body).replace(/\r/g, '').trim();
+    if(!body) return {err:'文章缺少 body'};
+    D.push({kind: R_KINDS[str(d.kind)] ? str(d.kind) : 'information', head: String(d.head == null ? '' : d.head).replace(/\r/g, '').trim(), body, zh: String(d.zh == null ? '' : d.zh).replace(/\r/g, '').trim()});
+  }
+  const qs = Array.isArray(r.qs) ? r.qs : [];
+  if(part === 6 && qs.length !== 4) return {err:'Part 6 必須剛好 4 題'};
+  if(part === 7 && (qs.length < 2 || qs.length > 5)) return {err:'Part 7 每組必須 2～5 題'};
+  const Q = [];
+  for(let i = 0; i < qs.length; i++){
+    const x = qs[i] && typeof qs[i] === 'object' ? qs[i] : {};
+    const o = Array.isArray(x.options) ? x.options.map(v => str(v).replace(/\s+/g, ' ')).filter(Boolean) : [];
+    if(o.length !== 4) return {err:`第 ${i+1} 題選項必須剛好 4 個`};
+    if(new Set(o.map(normAns)).size !== 4) return {err:`第 ${i+1} 題選項重複`};
+    const ans = o.find(v => normAns(v) === normAns(x.answer));
+    if(!ans) return {err:`第 ${i+1} 題答案不在選項中`};
+    const q = str(x.q);
+    if(part === 7 && !q) return {err:`第 ${i+1} 題缺少題目`};
+    if(!str(x.explain)) return {err:`第 ${i+1} 題缺少解析`};
+    const qt = str(x.qt);
+    Q.push({q, options:o, answer:ans, qt: R_QT_NAME[qt] ? qt : (part === 6 ? 'word' : 'detail'), explain: str(x.explain)});
+  }
+  if(part === 6){ const b = D[0].body; for(let n = 1; n <= 4; n++) if(b.split(`{${n}}`).length !== 2) return {err:`文章中空格 {${n}} 必須恰好出現一次`}; }
+  return {r:{rid, part, set, docs:D, qs:Q}};
+}
+async function importReading(arr){
+  if(!Array.isArray(arr)) throw new Error('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。');
+  await QLOAD;
+  const map = new Map(), skipped = [];
+  arr.forEach((r, i) => { const x = normR(r); if(x.err){ skipped.push(`第 ${i+1} 筆${r && r.rid ? `（${str(r.rid)}）` : ''}：${x.err}`); return; } map.set(x.r.rid, x.r); });
+  const list = [...map.values()];
+  let added = 0, updated = 0; list.forEach(r => RB[r.rid] ? updated++ : added++);
+  try{ await qWrite(list, false, R_STORE); }
+  catch(e){ throw new Error('寫入閱讀題庫失敗：' + ((e && e.message) || e) + '。請先匯出備份。'); }
+  list.forEach(r => RB[r.rid] = r);
+  return {added, updated, skipped, qn: list.reduce((a, r) => a + r.qs.length, 0)};
+}
+async function rReplaceAll(list){ await qWrite(list, true, R_STORE); RB = {}; list.forEach(x => RB[x.rid] = x); }
+function rIds(mode){
+  return Object.keys(RB).filter(id => { const r = RB[id];
+    return mode === 'all' || (mode === 'p6' && r.part === 6) || (mode === 'p7s' && r.part === 7 && r.set === 'single')
+      || (mode === 'p7m' && r.part === 7 && r.set !== 'single') || (mode === 'p7d' && r.part === 7 && r.set === 'double') || (mode === 'p7t' && r.part === 7 && r.set === 'triple'); });
+}
+const rQn = ids => ids.reduce((a, id) => a + RB[id].qs.length, 0);
+function rbankInfo(){
+  if(!QREADY) return '題庫載入中…';
+  const all = rIds('all');
+  if(!all.length) return '閱讀題庫目前是空的。匯入 Claude 提供的 Part 6、Part 7 題目後，就能在練習頁進行閱讀練習與閱讀模擬。'
+    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+  const p6 = rIds('p6'), s = rIds('p7s'), d = rIds('p7d'), t = rIds('p7t');
+  return `閱讀題庫共 ${all.length} 篇、${rQn(all)} 題：Part 6 ${p6.length} 篇（${rQn(p6)} 題）、Part 7 單篇 ${s.length} 篇（${rQn(s)} 題）、雙篇 ${d.length} 組（${rQn(d)} 題）、三篇 ${t.length} 組（${rQn(t)} 題）。`
+    + '同一個 id（rid）再次匯入會覆蓋。作答紀錄另外保存，清空題庫不會刪除。'
+    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+}
+function updateRbankInfo(){
+  const p = $('#rbank-info'); if(p) p.textContent = rbankInfo();
+  const c = $('[data-act=rclear]'); if(c) c.disabled = !rIds('all').length;
+}
+async function doImportReading(text){
+  const out = $('#rimport-result');
+  try{
+    const r = await importReading(parseJSON(text));
+    out.style.color = '';
+    out.textContent = `已放進閱讀題庫：新增 ${r.added} 篇，更新 ${r.updated} 篇（共 ${r.qn} 題）`
+      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
+    const ta = $('#rimport-text'); if(ta) ta.value = '';
+    updateRbankInfo();
+    toast(`閱讀題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
+  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
+}
+function readingCard(){
+  const all = rIds('all');
+  return `<button class="mode" data-act="reading-open" ${all.length ? '' : 'disabled'}>
+      <div class="t">閱讀練習<span class="n">${all.length}</span></div><div class="d">${!QREADY ? '題庫載入中…' : all.length
+        ? `多益 Part 6 段落填空、Part 7 單篇與多篇閱讀，以及 100 題、75 分鐘的閱讀模擬。`
+        : '閱讀題庫是空的，請到「設定 → 閱讀題庫」匯入題目。'}</div></button>`;
+}
+
+/* ---------- 文章顯示 ---------- */
+function rInline(s, ctx){
+  let h = esc(s);
+  if(ctx && ctx.blank) h = h.replace(/\{([1-4])\}/g, (m, n) => ctx.blank(+n));
+  return h.replace(/\[([1-4])\]/g, '<span class="im">[$1]</span>');
+}
+function rDocHTML(d, ctx){
+  let out = '';
+  if(d.head) out += `<div class="rh">${d.head.split('\n').map(l => { const m = /^([A-Za-z][A-Za-z .-]{0,18}):\s*(.*)$/.exec(l);
+    return m ? `<div><b>${esc(m[1])}:</b> ${rInline(m[2], ctx)}</div>` : `<div>${rInline(l, ctx)}</div>`; }).join('')}</div>`;
+  const lines = d.body.split('\n');
+  if(d.kind === 'chat' || d.kind === 'text'){
+    out += lines.filter(l => l.trim()).map(l => { const m = /^(.+?)\s*\(([^()]*\d[^()]*)\)\s*:\s*(.*)$/.exec(l);
+      return m ? `<div class="cl"><div class="cn">${esc(m[1])}<span>${esc(m[2])}</span></div><div>${rInline(m[3], ctx)}</div></div>` : `<p>${rInline(l, ctx)}</p>`; }).join('');
+    return out;
+  }
+  let buf = [], tbl = [];
+  const flushP = () => { if(buf.length){ out += `<p>${buf.map(l => rInline(l, ctx)).join('<br>')}</p>`; buf = []; } };
+  const flushT = () => { if(tbl.length){ out += `<div class="rt"><table>${tbl.map((l, i) => `<tr>${l.split(' | ').map(c => i === 0 ? `<th>${rInline(c.trim(), ctx)}</th>` : `<td>${rInline(c.trim(), ctx)}</td>`).join('')}</tr>`).join('')}</table></div>`; tbl = []; } };
+  for(const l of lines){
+    if(l.includes(' | ')){ flushP(); tbl.push(l); }
+    else if(!l.trim()){ flushP(); flushT(); }
+    else { flushT(); buf.push(l); }
+  }
+  flushP(); flushT();
+  return out;
+}
+function rZhHTML(d){ return d.zh ? d.zh.split(/\n\s*\n/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('') : '<p class="small">這篇沒有中譯。</p>'; }
+/* 實考的說明句：Questions 131-134 refer to the following e-mail. */
+function rRefer(r, from, to){
+  const ks = r.docs.map(d => R_KINDS[d.kind] || 'text');
+  let s;
+  if(ks.length === 1) s = ks[0];
+  else if(new Set(ks).size === 1) s = ks[0] + 's';
+  else s = ks.length === 2 ? `${ks[0]} and ${ks[1]}` : `${ks[0]}, ${ks[1]}, and ${ks[2]}`;
+  return `Questions ${from}-${to} refer to the following ${s}.`;
+}
+
+/* ---------- 選題 ---------- */
+function rAcc(id){ const p = R.prog[id]; if(!p) return null; let c = 0, n = 0; p.qs.forEach(q => { if(q){ c += q.c; n += q.c + q.w; } }); return n ? c / n : null; }
+/* 先出沒做過的，再出正確率低、較久沒做的 */
+function rOrder(ids){
+  const fresh = [], seen = [];
+  shuffle(ids.slice()).forEach(id => (R.prog[id] && R.prog[id].n ? seen : fresh).push(id));
+  seen.sort((a, b) => rAcc(a) - rAcc(b) || (R.prog[a].last || '').localeCompare(R.prog[b].last || ''));
+  return fresh.concat(seen);
+}
+function rMockUnits(){
+  const units = [];
+  /* Part 5：文法題與克漏字題庫（字彙題）混合 30 題，字彙題優先選多益分組的字 */
+  const cz = shuffle(Object.values(Q).filter(q => !W[q.wordId] || hasTag(q.wordId, 'toeic') || !hasTag(q.wordId, 'dipl')));
+  const gz = shuffle(gIds().slice());
+  const nc = Math.min(R_MOCK_P5_WORD, cz.length), ng = Math.min(R_MOCK_P5 - nc, gz.length);
+  const p5 = gz.slice(0, ng).map(id => ({kind:'p5', src:'g', q:GQ[id]}))
+    .concat(cz.slice(0, Math.min(cz.length, R_MOCK_P5 - ng)).map(q => ({kind:'p5', src:'c', q})));
+  units.push(...shuffle(p5));
+  rOrder(rIds('p6')).slice(0, R_MOCK_P6).forEach(id => units.push({kind:'set', r:RB[id]}));
+  let n = 0;
+  for(const id of rOrder(rIds('p7s'))){ const k = RB[id].qs.length; if(n + k > R_MOCK_P7S) continue; units.push({kind:'set', r:RB[id]}); n += k; if(n === R_MOCK_P7S) break; }
+  rOrder(rIds('p7d')).slice(0, R_MOCK_P7D).forEach(id => units.push({kind:'set', r:RB[id]}));
+  rOrder(rIds('p7t')).slice(0, R_MOCK_P7T).forEach(id => units.push({kind:'set', r:RB[id]}));
+  return units;
+}
+function rMockPlan(){
+  const u = rMockUnits(), cnt = {p5:0, p6:0, p7:0};
+  u.forEach(x => { if(x.kind === 'p5') cnt.p5++; else cnt[x.r.part === 6 ? 'p6' : 'p7'] += x.r.qs.length; });
+  return cnt;
+}
+
+/* ---------- 開始面板 ---------- */
+function openReadingSheet(){
+  const st = R.settings;
+  let mode = st.mode, count = Object.assign({}, st.count), timer = st.timer;
+  const segHTML = (items, cur, key) => `<div class="seg" style="margin:0">${items.map(([k, t]) => `<button class="${String(cur) === String(k) ? 'on' : ''}" data-${key}="${k}">${t}</button>`).join('')}</div>`;
+  const stat = ids => { let c = 0, n = 0; ids.forEach(id => { const p = R.prog[id]; if(p) p.qs.forEach(q => { if(q){ c += q.c; n += q.c + q.w; } }); });
+    const done = ids.filter(id => R.prog[id] && R.prog[id].n).length;
+    return `已做過 ${done} / ${ids.length}${n ? `・正確率 ${pct(c, n)}%` : ''}`; };
+  const avail = () => mode === 'mock' ? (rIds('all').length ? 1 : 0) : Math.min(count[mode], rIds(mode).length);
+  const draw = el => {
+    let h = segHTML([['p6','Part 6'],['p7s','P7 單篇'],['p7m','P7 多篇'],['mock','模擬']], mode, 'rm');
+    if(mode === 'mock'){
+      const c = rMockPlan(), tot = c.p5 + c.p6 + c.p7;
+      h += `<div class="panel" style="padding:14px 16px;margin-top:16px"><p style="margin:0 0 6px;font-weight:600">照多益閱讀測驗：100 題、限時 75 分鐘</p>
+        <p class="small" style="margin:0">Part 5 句子填空 30 題（文法題與字彙題混合）、Part 6 段落填空 4 篇 16 題、Part 7 閱讀理解 54 題（單篇 29 題、雙篇 2 組、三篇 3 組）。作答時可以前後翻題、修改答案，交卷或時間到才顯示成績與解析。題號依實考從 101 號開始。</p>
+        <p class="small" style="margin:8px 0 0">建議時間分配：Part 5 約 10 分鐘、Part 6 約 8 分鐘、Part 7 約 55 分鐘。</p>
+        ${tot < 100 ? `<p class="note" style="margin-top:8px">目前題庫可組成 ${tot} 題（Part 5 ${c.p5}、Part 6 ${c.p6}、Part 7 ${c.p7}），題目不足的部分會略過。</p>` : ''}</div>`;
+    } else {
+      const ids = rIds(mode), unit = mode === 'p7m' ? '組' : '篇';
+      const desc = {p6:'短文中有 4 個空格，3 題是字彙、文法或連接詞，1 題要選一個句子填入。建議每篇 2 分鐘內完成。',
+        p7s:'電子郵件、公告、廣告、表單、簡訊與線上聊天等單篇文章，每篇 2～4 題。建議每題 1 分鐘。',
+        p7m:'雙篇或三篇相關文章一組 5 題，常有要對照兩篇才答得出的題目。建議每組 5～6 分鐘。'}[mode];
+      h += `<div class="panel" style="padding:14px 16px;margin-top:16px"><p class="small" style="margin:0">${desc}一篇的題目全部答完才交卷，交卷後顯示對錯、解析與全文中譯。</p>
+        <p class="small" style="margin:8px 0 0">題庫 ${ids.length} ${unit}・${stat(ids)}</p></div>
+        <p class="small" style="margin:16px 2px 6px">每次${unit}數</p>${segHTML(R_COUNTS[mode].map(n => [n, `${n} ${unit}`]), count[mode], 'rc')}
+        <div class="panel" style="margin-top:14px"><div class="lbl"><div class="grow">顯示用時<div class="small">作答畫面上方顯示累計時間</div></div><button class="switch ${timer ? 'on' : ''}" data-rt="1" aria-pressed="${timer}"></button></div></div>`;
+    }
+    el.querySelector('#rs-body').innerHTML = h;
+    const k = avail(), go = el.querySelector('#rs-go');
+    go.disabled = !k; go.textContent = !k ? '這一類還沒有題目' : mode === 'mock' ? '開始模擬（75 分鐘）' : `開始（${k} ${mode === 'p7m' ? '組' : '篇'}）`;
+  };
+  openSheet({title:'閱讀練習', right:'取消', onRight: () => closeSheet(),
+    body:`<div id="rs-body"></div>`, foot:`<button class="btn" id="rs-go">開始</button>`,
+    mount: el => {
+      draw(el);
+      el.querySelector('#rs-body').addEventListener('click', e => {
+        const b = e.target.closest('button'); if(!b) return;
+        if(b.dataset.rm) mode = b.dataset.rm;
+        else if(b.dataset.rc) count[mode] = +b.dataset.rc;
+        else if(b.dataset.rt) timer = !timer;
+        else return;
+        draw(el);
+      });
+      el.querySelector('#rs-go').addEventListener('click', () => {
+        if(!avail()) return;
+        if(mode === 'mock' && !confirm('閱讀模擬共 75 分鐘，開始後會立即計時。確定開始嗎？')) return;
+        R.settings = {mode, count, timer}; save('reading');
+        closeSheet(); rStart(mode, count[mode]);
+      });
+    }});
+}
+
+/* ---------- 作答流程 ---------- */
+let RS = null;
+const rFlat = units => { const f = []; units.forEach((u, ui) => { const n = u.kind === 'p5' ? 1 : u.r.qs.length; for(let k = 0; k < n; k++) f.push({ui, k}); }); return f; };
+function rQ(f){
+  const u = RS.units[f.ui];
+  if(u.kind === 'p5') return {q:'', options:u.q.options, answer:u.q.answer, explain:u.q.explain || '', zh:u.q.zh, qt: u.src === 'g' ? 'p5g' : 'p5c'};
+  return u.r.qs[f.k];
+}
+const rNum = i => RS.mock ? i + 101 : i - RS.a + 1;
+function rStart(mode, count){
+  const units = mode === 'mock' ? rMockUnits() : rOrder(rIds(mode)).slice(0, count).map(id => ({kind:'set', r:RB[id]}));
+  if(!units.length){ toast('這一類還沒有題目'); return; }
+  RS = {mode, mock: mode === 'mock', units, flat: rFlat(units), cu:0, pos:0, phase:'answer', ans:{}, res:{}, start:Date.now(), showZh:false, tab:0, fold:false, shownUi:-1,
+    clock: mode === 'mock' || R.settings.timer, again: () => rStart(mode, count)};
+  rSetRange();
+  $('#session').hidden = false; $('#session').classList.add('reading'); setLock('session', true);
+  if(RS.clock) RS.tick = setInterval(rTick, 1000);
+  rGo(RS.a, true);
+}
+function rSetRange(){
+  if(RS.mock){ RS.a = 0; RS.b = RS.flat.length; }
+  else { RS.a = RS.flat.findIndex(f => f.ui === RS.cu); RS.b = RS.a + RS.units[RS.cu].r.qs.length; }
+  RS.unitStart = Date.now();
+}
+function rTick(){
+  if(!RS) return;
+  if(RS.mock && RS.phase === 'answer' && Date.now() - RS.start >= R_MOCK_MS){ toast('時間到，已自動交卷'); rFinish(); return; }
+  rHeader();
+}
+function rHeader(){
+  if(!RS || RS.phase === 'done') return;
+  const f = RS.flat[RS.pos], u = RS.units[f.ui];
+  let lab;
+  if(RS.mock) lab = `閱讀模擬・Part ${u.kind === 'p5' ? 5 : u.r.part}${RS.phase === 'review' ? '・解析' : ''}`;
+  else lab = `Part ${u.r.part}${u.r.part === 7 ? `・${R_SETS[u.r.set]}` : ''}・第 ${RS.cu + 1} / ${RS.units.length} ${u.r.set === 'single' ? '篇' : '組'}`;
+  $('#s-label').textContent = lab;
+  let clock = '';
+  if(RS.clock && RS.phase === 'answer') clock = RS.mock ? `剩 ${fmtTime(R_MOCK_MS - (Date.now() - RS.start))}` : fmtTime(Date.now() - RS.start);
+  $('#s-count').innerHTML = `${rNum(RS.pos)}${RS.mock ? '' : ` / ${RS.b - RS.a}`}${clock ? `<span class="clock">　${clock}</span>` : ''}`;
+  const done = Object.keys(RS.ans).length;
+  $('#s-bar').style.width = (RS.mock ? done / RS.flat.length : (RS.cu + (RS.phase === 'answer' ? 0 : 1)) / RS.units.length) * 100 + '%';
+}
+function rGo(i, force = false){
+  if(!RS || i < RS.a || i >= RS.b) return;
+  const old = RS.flat[RS.pos], nu = RS.flat[i];
+  RS.pos = i;
+  if(force || !old || old.ui !== nu.ui || RS.shownUi !== nu.ui){ RS.tab = 0; RS.showZh = false; rBody(); $('#s-body').scrollTop = 0; }
+  else rBlanks(true);
+  rFoot(); rHeader();
+}
+function rBody(){
+  const f = RS.flat[RS.pos], u = RS.units[f.ui], rev = RS.phase !== 'answer';
+  let h = '';
+  if(u.kind === 'p5'){
+    const [before, after = ''] = u.q.sentence.split(BLANK_RE);
+    h = `<div class="rref">Part 5・Incomplete Sentences</div>
+      <div class="cloze g-sent">${esc(before)}<span class="rb" id="rb-p5">${rNum(RS.pos)}</span>${esc(after)}</div>
+      ${rev ? `<div class="cloze-zh">${esc(u.q.zh)}</div>` : ''}`;
+  } else {
+    const r = u.r, i0 = RS.flat.findIndex(x => x.ui === f.ui), n0 = rNum(i0);
+    h = `<div class="rref">${esc(rRefer(r, n0, n0 + r.qs.length - 1))}</div>`;
+    if(r.docs.length > 1) h += `<div class="rtabs">${r.docs.map((d, i) => `<button class="${i === RS.tab ? 'on' : ''}" data-act="rtab" data-i="${i}">文章 ${i + 1}・${R_KIND_ZH[d.kind] || '文章'}</button>`).join('')}</div>`;
+    const d = r.docs[RS.tab];
+    h += `<div class="rdoc"><div class="rkind">${esc(R_KINDS[d.kind] || '')}</div>${rDocHTML(d, {blank: n => `<span class="rb" data-n="${n}">${n0 + n - 1}</span>`})}</div>`;
+    if(rev) h += `<div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="rzh">${RS.showZh ? '隱藏中譯' : '顯示全文中譯'}</button></div>`
+      + (RS.showZh ? `<div class="rzh"><div class="rkind">中譯${r.docs.length > 1 ? `・文章 ${RS.tab + 1}` : ''}</div>${rZhHTML(d)}</div>` : '');
+  }
+  $('#s-body').innerHTML = h; RS.shownUi = f.ui;
+  rBlanks(false);
+}
+/* Part 5、Part 6 的空格：作答時顯示選的答案、目前的題目反白；交卷後顯示正確答案與對錯 */
+function rBlanks(scroll){
+  const f = RS.flat[RS.pos], u = RS.units[f.ui], rev = RS.phase !== 'answer';
+  const fill = (el, idx) => {
+    const q = rQ(RS.flat[idx]), a = RS.ans[idx];
+    el.className = 'rb';
+    if(rev){ el.textContent = q.answer; el.classList.add(RS.res[idx] && RS.res[idx].ok ? 'good' : 'bad'); }
+    else if(a != null){ el.textContent = q.options[a]; el.classList.add('fill'); }
+    else el.textContent = rNum(idx);
+    if(idx === RS.pos){ el.classList.add('on'); if(scroll) el.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+  };
+  if(u.kind === 'p5'){ const el = $('#rb-p5'); if(el) fill(el, RS.pos); return; }
+  if(u.r.part !== 6) return;
+  const i0 = RS.flat.findIndex(x => x.ui === f.ui);
+  document.querySelectorAll('#s-body .rb[data-n]').forEach(el => fill(el, i0 + (+el.dataset.n) - 1));
+}
+function rFoot(){
+  const i = RS.pos, f = RS.flat[i], q = rQ(f), rev = RS.phase !== 'answer', chosen = RS.ans[i], res = RS.res[i];
+  const u = RS.units[f.ui];
+  let hd;
+  if(RS.mock && !rev) hd = `<span>第 ${rNum(i)} 題</span><span>已作答 ${Object.keys(RS.ans).length} / ${RS.flat.length}</span>`;
+  else if(RS.mock) hd = `<span>第 ${rNum(i)} 題・${u.kind === 'p5' ? 'Part 5' : R_QT_NAME[q.qt]}</span><span>${res && res.ok ? '答對' : '答錯'}</span>`;
+  else hd = `<span>第 ${rNum(i)} 題${rev ? `・${R_QT_NAME[q.qt]}` : ''}</span><span class="rdots">${Array.from({length: RS.b - RS.a}, (_, k) => { const j = RS.a + k;
+      const c = rev ? (RS.res[j] && RS.res[j].ok ? 'ok' : 'no') : (RS.ans[j] != null ? 'a' : '');
+      return `<i class="${c} ${j === i ? 'cur' : ''}" data-act="rgo" data-p="${j}"></i>`; }).join('')}</span>`;
+  const qText = q.q ? `<div class="rq-q en">${esc(q.q).replace(/\[([1-4])\]/g, '<span class="im">[$1]</span>')}</div>`
+    : u.kind === 'p5' ? '' : '<div class="rq-q small">選出最適合填入空格的答案</div>';
+  const opts = q.options.map((o, k) => {
+    const cls = rev ? (o === q.answer ? 'right' : k === chosen ? 'wrong' : '') : (k === chosen ? 'sel' : '');
+    return `<button class="opt en ${cls}" data-act="ropt" data-i="${k}" ${rev ? 'disabled' : ''}><span class="k">(${'ABCD'[k]})</span>${esc(o)}</button>`; }).join('');
+  let exp = '';
+  if(rev){
+    exp = `<div class="rexp"><div class="verdict ${res && res.ok ? 'ok' : 'no'}" style="margin:0"><span>${res && res.ok ? '答對了' : chosen == null ? '沒有作答' : '答錯了'}</span></div>`
+      + (q.explain ? `<div class="lb">解析</div><div>${esc(q.explain)}</div>` : '')
+      + (u.kind === 'p5' && !q.explain ? `<div class="lb">中譯</div><div>${esc(q.zh)}</div>` : '') + '</div>';
+  }
+  let nav;
+  const last = i >= RS.b - 1;
+  const prev = `<button class="btn ghost" data-act="rprev" ${i <= RS.a ? 'disabled' : ''}>‹ 上一題</button>`;
+  if(!rev) nav = prev + (last ? `<button class="btn" data-act="rsubmit">交卷</button>` : `<button class="btn" data-act="rnext">下一題 ›</button>`);
+  else if(RS.mock) nav = prev + (last ? `<button class="btn" data-act="rresult">回到成績</button>` : `<button class="btn" data-act="rnext">下一題 ›</button>`);
+  else nav = prev + (last ? `<button class="btn" data-act="rnextunit">${RS.cu < RS.units.length - 1 ? '下一篇' : '看結果'}</button>` : `<button class="btn" data-act="rnext">下一題 ›</button>`);
+  const mockSubmit = RS.mock && !rev && !last ? `<button class="btn sm ghost" data-act="rsubmit" style="margin-top:10px;width:100%">提前交卷</button>` : '';
+  $('#s-foot').innerHTML = `<div class="rq ${RS.fold ? 'fold' : ''}"><button class="rq-hd" data-act="rfold" aria-label="收合或展開題目">${hd}<span>${RS.fold ? '▴' : '▾'}</span></button>${qText}<div class="opts">${opts}</div>${exp}<div class="rnav">${nav}</div>${mockSubmit}</div>`;
+}
+function rChoose(k){
+  if(!RS || RS.phase !== 'answer') return;
+  RS.ans[RS.pos] = k;
+  rBlanks(false); rFoot(); rHeader();
+}
+function rSubmit(){
+  if(!RS || RS.phase !== 'answer') return;
+  let un = 0; for(let i = RS.a; i < RS.b; i++) if(RS.ans[i] == null) un++;
+  if(un && !confirm(`還有 ${un} 題沒有作答，確定要交卷嗎？`)) return;
+  rFinish();
+}
+function rRecord(u, k, ok){
+  if(u.kind === 'set'){
+    const p = R.prog[u.r.rid] || (R.prog[u.r.rid] = {n:0, last:'', g:rGroupOf(u.r), qs:[]});
+    const s = p.qs[k] || (p.qs[k] = {c:0, w:0, t:u.r.qs[k].qt});
+    ok ? s.c++ : s.w++; s.t = u.r.qs[k].qt; p.g = rGroupOf(u.r); p.last = today();
+    const d = logDay(); d.n++; d.r = (d.r || 0) + 1; if(ok){ d.c++; d.rc = (d.rc || 0) + 1; }
+  } else if(u.src === 'g') gRecord(u.q.gid, ok, false);
+  else if(W[u.q.wordId]) record(u.q.wordId, 'cloze', ok);
+  else { const d = logDay(); d.n++; if(ok) d.c++; }
+}
+/* 交卷：評分並寫入紀錄（練習為目前這一篇，模擬為全部） */
+function rFinish(){
+  const seen = new Set();
+  for(let i = RS.a; i < RS.b; i++){
+    const f = RS.flat[i], q = rQ(f), a = RS.ans[i], ok = a != null && q.options[a] === q.answer;
+    RS.res[i] = {ok};
+    const u = RS.units[f.ui];
+    rRecord(u, f.k, ok);
+    if(u.kind === 'set' && !seen.has(f.ui)){ seen.add(f.ui); R.prog[u.r.rid].n++; }
+  }
+  save('reading','progress','pool','log','books');
+  if(RS.mock){
+    RS.ms = Math.min(Date.now() - RS.start, R_MOCK_MS); clearInterval(RS.tick);
+    const sc = rMockScore();
+    R.mocks.push({d: today(), ms: RS.ms, p5: sc.p5, p6: sc.p6, p7: sc.p7}); R.mocks = R.mocks.slice(-20); save('reading');
+    rMockEnd(); return;
+  }
+  RS.unitMs = Date.now() - RS.unitStart;
+  RS.phase = 'review'; RS.fold = false;
+  rGo(RS.a, true);
+  const c = Array.from({length: RS.b - RS.a}, (_, k) => RS.res[RS.a + k].ok).filter(Boolean).length;
+  toast(`這一${RS.units[RS.cu].r.set === 'single' ? '篇' : '組'}答對 ${c} / ${RS.b - RS.a} 題`);
+}
+function rNextUnit(){
+  if(!RS) return;
+  if(RS.cu < RS.units.length - 1){ RS.cu++; RS.phase = 'answer'; RS.fold = false; rSetRange(); rGo(RS.a, true); }
+  else rEnd();
+}
+function rMockScore(){
+  const sc = {p5:[0,0], p6:[0,0], p7:[0,0]};
+  RS.flat.forEach((f, i) => { const u = RS.units[f.ui], k = u.kind === 'p5' ? 'p5' : u.r.part === 6 ? 'p6' : 'p7'; sc[k][1]++; if(RS.res[i] && RS.res[i].ok) sc[k][0]++; });
+  return sc;
+}
+function rTypeRows(range){
+  const per = {};
+  range.forEach(i => { const f = RS.flat[i], u = RS.units[f.ui]; const t = u.kind === 'p5' ? null : rQ(f).qt; if(!t) return;
+    const x = per[t] || (per[t] = {c:0, w:0}); RS.res[i] && RS.res[i].ok ? x.c++ : x.w++; });
+  return R_QT.filter(([k]) => per[k]).map(([k, t]) => `<div class="lbl"><span>${t}</span><span class="small">對 ${per[k].c}・錯 ${per[k].w}</span></div>`).join('');
+}
+function rEndScreen(){ RS.phase = 'done'; $('#s-label').textContent = '完成'; $('#s-count').textContent = ''; $('#s-bar').style.width = '100%'; }
+function rEnd(){
+  const ms = Date.now() - RS.start; rEndScreen(); clearInterval(RS.tick);
+  const all = Object.keys(RS.res).map(Number), c = all.filter(i => RS.res[i].ok).length;
+  const sets = RS.units.map((u, ui) => { const ix = all.filter(i => RS.flat[i].ui === ui); const ok = ix.filter(i => RS.res[i].ok).length;
+    const d = u.r.docs.map(x => R_KIND_ZH[x.kind] || '文章').join('＋');
+    return `<div class="lbl"><span>${d}</span><span class="small">${ok} / ${ix.length}</span></div>`; }).join('');
+  const sugg = RS.mode === 'p6' ? `建議每篇 2 分鐘內` : RS.mode === 'p7s' ? `建議每題約 1 分鐘` : `建議每組 5～6 分鐘`;
+  $('#s-body').innerHTML = `<div class="summary"><div class="big">${all.length ? pct(c, all.length) : 0}%</div><p class="sub" style="margin-top:8px">${R_MODES[RS.mode]}・本次正確率</p></div>
+    <div class="sumgrid"><div><b>${c} / ${all.length}</b><span>答對題數</span></div><div><b class="clock">${fmtTime(ms)}</b><span>用時（${sugg}）</span></div></div>
+    <h2 style="font-size:17px">各篇對錯</h2><div class="panel">${sets}</div>
+    <h2 style="font-size:17px">各題型對錯</h2><div class="panel">${rTypeRows(all)}</div>`;
+  $('#s-body').scrollTop = 0;
+  $('#s-foot').innerHTML = `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="ragain">再練一組</button></div>`;
+}
+function rMockEnd(){
+  rEndScreen();
+  const sc = rMockScore(), tot = sc.p5[0] + sc.p6[0] + sc.p7[0], n = sc.p5[1] + sc.p6[1] + sc.p7[1];
+  const all = RS.flat.map((_, i) => i);
+  const part = (lb, x) => x[1] ? `<div class="lbl"><span>${lb}</span><span class="small">${x[0]} / ${x[1]}（${pct(x[0], x[1])}%）</span></div>` : '';
+  $('#s-body').innerHTML = `<div class="summary"><div class="big">${tot}<small style="font-size:24px;color:var(--muted)"> / ${n}</small></div><p class="sub" style="margin-top:8px">閱讀模擬・答對題數</p></div>
+    <div class="sumgrid"><div><b>${pct(tot, n)}%</b><span>正確率</span></div><div><b class="clock">${fmtTime(RS.ms)}</b><span>用時（限時 75:00）</span></div></div>
+    <div class="panel">${part('Part 5 句子填空', sc.p5)}${part('Part 6 段落填空', sc.p6)}${part('Part 7 閱讀理解', sc.p7)}</div>
+    <p class="small" style="margin:10px 4px 0">多益分數由各回答對題數依難度換算，這裡只顯示答對題數，可用來比較每次模擬的進步。</p>
+    <h2 style="font-size:17px">各題型對錯（Part 6、7）</h2><div class="panel">${rTypeRows(all) || '<p class="small" style="margin:14px 16px">沒有 Part 6、7 的題目。</p>'}</div>`;
+  $('#s-body').scrollTop = 0;
+  $('#s-foot').innerHTML = `<button class="btn" data-act="rreview">檢視解析</button><div class="row" style="margin-top:10px"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn ghost" data-act="ragain">再模擬一次</button></div>`;
+}
+
+/* ---------- 統計 ---------- */
+function rStatsHTML(){
+  const grp = {'6':{c:0, w:0}, '7s':{c:0, w:0}, '7m':{c:0, w:0}}, qt = {};
+  let sets = 0;
+  for(const rid in R.prog){ const p = R.prog[rid]; if(p.n) sets++;
+    p.qs.forEach(s => { if(!s) return; grp[p.g].c += s.c; grp[p.g].w += s.w; const x = qt[s.t] || (qt[s.t] = {c:0, w:0}); x.c += s.c; x.w += s.w; }); }
+  const row = (t, x, tag = '') => { const n = x.c + x.w, r = pct(x.c, n);
+    return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${t}${tag}</span><span class="small">${r}%（${n} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${r}%"></i></div></div>`; };
+  const g = Object.keys(R_GROUP).filter(k => grp[k].c + grp[k].w);
+  const t = R_QT.filter(([k]) => qt[k] && qt[k].c + qt[k].w).map(([k, name]) => ({k, name, x: qt[k], acc: qt[k].c / (qt[k].c + qt[k].w)})).sort((a, b) => a.acc - b.acc);
+  const weak = t.find(x => x.x.c + x.x.w >= 5);
+  const mocks = R.mocks.slice(-5).reverse();
+  if(!g.length && !mocks.length) return `<h2>閱讀練習</h2><div class="panel"><p class="small" style="margin:14px 16px">還沒有閱讀練習的作答紀錄。</p></div>`;
+  return `<h2>閱讀練習</h2>
+    <div class="panel">${g.map(k => row(R_GROUP[k], grp[k])).join('') || '<p class="small" style="margin:14px 16px">還沒有 Part 6、7 的練習紀錄。</p>'}</div>
+    ${t.length ? `<p class="small" style="margin:12px 4px 6px">各題型正確率（由低到高；作答 5 題以上的類型才標示「最弱」）</p><div class="panel">${t.map(x => row(x.name, x.x, weak && weak.k === x.k ? '<span class="tag weak">最弱</span>' : '')).join('')}</div>` : ''}
+    ${mocks.length ? `<p class="small" style="margin:12px 4px 6px">最近的閱讀模擬</p><div class="panel">${mocks.map(m => { const tot = m.p5[0] + m.p6[0] + m.p7[0], n = m.p5[1] + m.p6[1] + m.p7[1];
+      return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${mmdd2(m.d)}・答對 ${tot} / ${n}</span><span class="small">用時 ${fmtTime(m.ms)}</span></div>
+        <div class="small">Part 5 ${m.p5[0]}/${m.p5[1]}・Part 6 ${m.p6[0]}/${m.p6[1]}・Part 7 ${m.p7[0]}/${m.p7[1]}</div></div>`; }).join('')}</div>` : ''}
+    ${sets ? `<p class="small" style="margin:8px 4px 0">已練習 ${sets} 篇／組。</p>` : ''}`;
+}
+
 /* ========== 事件 ========== */
 async function readFile(){
   return new Promise(res => {
@@ -2232,7 +2771,7 @@ async function doRestore(text){
     const obj = parseJSON(text);
     if(!confirm('還原會以備份內容取代目前所有資料，確定要還原嗎？')) return;
     const r = await restoreBackup(obj); closeSheet(); render();
-    const parts = [r.qn == null ? '克漏字題庫維持不變' : `克漏字題庫 ${r.qn} 題`, r.gn == null ? '文法題庫與文法進度維持不變' : `文法題庫 ${r.gn} 題`];
+    const parts = [r.qn == null ? '克漏字題庫維持不變' : `克漏字題庫 ${r.qn} 題`, r.gn == null ? '文法題庫與文法進度維持不變' : `文法題庫 ${r.gn} 題`, r.rn == null ? '閱讀題庫與閱讀進度維持不變' : `閱讀題庫 ${r.rn} 篇`];
     toast(`已還原備份（${parts.join('，')}）`);
   }catch(e){ alert(e.message); render(); }
 }
@@ -2329,6 +2868,27 @@ const ACT = {
     try{ await gReplaceAll([]); updateGbankInfo(); const out = $('#gimport-result'); if(out) out.textContent = ''; toast('已清空文法題庫'); }
     catch(e){ toast('清空文法題庫失敗'); }
   },
+  'reading-open': () => { if(!rIds('all').length) return toast('閱讀題庫是空的，請先到設定頁匯入題目'); openReadingSheet(); },
+  ropt: el => rChoose(+el.dataset.i),
+  rgo: el => rGo(+el.dataset.p),
+  rprev: () => rGo(RS.pos - 1),
+  rnext: () => rGo(RS.pos + 1),
+  rsubmit: () => rSubmit(),
+  rnextunit: () => rNextUnit(),
+  rtab: el => { RS.tab = +el.dataset.i; rBody(); $('#s-body').scrollTop = 0; },
+  rzh: () => { RS.showZh = !RS.showZh; const y = $('#s-body').scrollTop; rBody(); $('#s-body').scrollTop = y; },
+  rfold: () => { RS.fold = !RS.fold; rFoot(); },
+  rreview: () => { RS.phase = 'review'; RS.a = 0; RS.b = RS.flat.length; RS.shownUi = -1; rGo(0, true); },
+  rresult: () => rMockEnd(),
+  ragain: () => { const f = RS && RS.again; closeSession(); if(f) f(); },
+  rimport: () => { const t = $('#rimport-text').value.trim(); if(!t) return toast('請先貼上閱讀題 JSON 或選擇檔案'); doImportReading(t); },
+  'rimport-file': async () => { const t = await readFile(); if(t) doImportReading(t); },
+  rclear: async () => {
+    const n = rIds('all').length; if(!n) return;
+    if(!confirm(`確定要清空閱讀題庫（${n} 篇）嗎？作答紀錄與模擬成績會保留，重新匯入同 id 的題目後即可接續。`)) return;
+    try{ await rReplaceAll([]); updateRbankInfo(); const out = $('#rimport-result'); if(out) out.textContent = ''; toast('已清空閱讀題庫'); }
+    catch(e){ toast('清空閱讀題庫失敗'); }
+  },
   'grammar-open': () => { if(!gIds().length) return toast('文法題庫是空的，請先到設定頁匯入題目'); openGrammarSheet(); },
   gopt: el => gAnswer(+el.dataset.i),
   gnext: () => gNext(),
@@ -2344,15 +2904,18 @@ const ACT = {
     foot:`<button class="btn" data-act="restore-go">還原</button>`}),
   'restore-go': () => { const t = $('#restore-text').value.trim(); if(t) doRestore(t); },
   'reset-all': async () => {
-    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定、紀錄、克漏字題庫、文法題庫與文法練習進度。建議先匯出備份。確定繼續？')) return;
+    if(!confirm('全部重設會刪除所有單字、單字簿、進度、錯字池、設定、紀錄、克漏字題庫、文法題庫、閱讀題庫，以及文法與閱讀的練習進度。建議先匯出備份。確定繼續？')) return;
     if(str(prompt('請輸入「重設」兩個字以確認')) !== '重設') return toast('已取消');
     Object.values(K).forEach(k => store.del(k)); loadAll(); applyTheme();
     try{ await QLOAD; await qReplaceAll([]); }catch(e){}
     try{ await gReplaceAll([]); }catch(e){}
+    try{ await rReplaceAll([]); }catch(e){}
     TAB = 'home'; render(); toast('已全部重設');
   },
   /* 練習中 */
   quit: () => {
+    if(RS){ const n = Object.keys(RS.ans).length;
+      if(RS.phase !== 'answer' || !n || confirm('要結束這次練習嗎？還沒交卷的作答不會記錄。')) closeSession(); return; }
     if(GS){ if(GS.ended || !GS.ans || confirm('要結束這次練習嗎？已作答的紀錄都已儲存。')) closeSession(); return; }
     if(!SES || !SES.ans || confirm('要結束這次練習嗎？已作答的進度都已儲存。')) closeSession();
   },
