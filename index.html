@@ -2422,8 +2422,20 @@ function rMockUnits(){
     .concat(cz.slice(0, Math.min(cz.length, R_MOCK_P5 - ng)).map(q => ({kind:'p5', src:'c', q})));
   units.push(...shuffle(p5));
   rOrder(rIds('p6')).slice(0, R_MOCK_P6).forEach(id => units.push({kind:'set', r:RB[id]}));
+  /* Part 7 單篇：依優先順序挑到剛好 29 題；差幾題時，用一篇換一篇補足 */
+  const order = rOrder(rIds('p7s')), pick = [];
   let n = 0;
-  for(const id of rOrder(rIds('p7s'))){ const k = RB[id].qs.length; if(n + k > R_MOCK_P7S) continue; units.push({kind:'set', r:RB[id]}); n += k; if(n === R_MOCK_P7S) break; }
+  for(const id of order){ const k = RB[id].qs.length; if(n + k > R_MOCK_P7S) continue; pick.push(id); n += k; if(n === R_MOCK_P7S) break; }
+  for(let tries = 0; n < R_MOCK_P7S && tries < 3; tries++){
+    const rest = order.filter(id => !pick.includes(id)); let done = false;
+    for(let i = pick.length - 1; i >= 0 && !done; i--){
+      const need = R_MOCK_P7S - n + RB[pick[i]].qs.length;
+      const j = rest.find(id => RB[id].qs.length === need) || rest.find(id => RB[id].qs.length < need && RB[id].qs.length > RB[pick[i]].qs.length);
+      if(j){ n += RB[j].qs.length - RB[pick[i]].qs.length; pick[i] = j; done = true; }
+    }
+    if(!done) break;
+  }
+  pick.forEach(id => units.push({kind:'set', r:RB[id]}));
   rOrder(rIds('p7d')).slice(0, R_MOCK_P7D).forEach(id => units.push({kind:'set', r:RB[id]}));
   rOrder(rIds('p7t')).slice(0, R_MOCK_P7T).forEach(id => units.push({kind:'set', r:RB[id]}));
   return units;
