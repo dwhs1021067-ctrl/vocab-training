@@ -410,12 +410,10 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 const BACKUP_VERSION = 4;        /* v1.6 起含克漏字題庫；v1.7 起含文法題庫與進度；v1.8 起含閱讀題庫與進度（v1.9 沒有新增資料種類） */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log', grammar:'vocab_grammar', reading:'vocab_reading'};
-/* v1.9：mr 開頭為「精通字複習」的設定（範圍、題數、題型、兩次答錯時的處理） */
-const DEF_SETTINGS = {dailyNew:10, batchSize:7, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:20, tagMigrated:false, speakOnCorrect:true, drawV2:false,
-  mrTag:'all', mrCount:20, mrType:'mix', mrDemote:'lv4'};
+const DEF_SETTINGS = {dailyNew:10, batchSize:7, linkCount:20, autoSpeak:true, rate:0.9, trainBooks:[], skipWarmup:false, theme:'auto', drawCount:20, tagMigrated:false, speakOnCorrect:true, drawV2:false};
 const TAGS = [['toeic','多益'],['dipl','外特']];
 const TAG_NAME = Object.fromEntries(TAGS);
 const INTERVALS = [1,2,4,7,15,30,60,120];   /* v1.4.0 加上 60、120 天兩階，減少長期複習量 */
@@ -427,8 +425,6 @@ const CLOZE_COUNT = 20;          /* 例句克漏字每次題數（v1.3.0） */
 const LEECH_AT = 3;              /* 遺忘曲線複習累計答錯幾次收進「頑固字」（v1.3.0） */
 const LEECH_BOOK = '頑固字';
 const REVIEW_BACK = 2;           /* 複習答錯時間隔退回幾階（v1.3.0） */
-const MR_COUNTS = [10, 20, 30];  /* 精通字複習每次題數（v1.9） */
-const MR_TYPES = [['mix','混合'],['en2zh','英選中'],['zh2en','中選英'],['spell','拼寫']];
 const ICON_SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
 const CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>';
 
@@ -471,7 +467,8 @@ function normProg(p){
     srs,
     learnedAt: p.learnedAt || null,
     confirmedAt: level >= 5 ? confirmedAt : null,
-    revWrong: +p.revWrong || 0
+    revWrong: +p.revWrong || 0,
+    mrN: +p.mrN || 0                /* 精通字複習出過幾次，用來輪流出題（v1.11） */
   };
 }
 function normBook(b){
@@ -494,11 +491,8 @@ function normalizeAll(){
   /* v1.6.2：抽取單字改為預設 20 字、每輪 7 字；舊設定（40 字、8 字一組）只在第一次開啟新版時換成新預設值 */
   if(S.drawV2 !== true){ S.drawCount = 20; S.batchSize = 7; S.drawV2 = true; }
   S.drawCount = clampInt(S.drawCount, DRAW_MIN, DRAW_MAX, 20); S.tagMigrated = S.tagMigrated === true;
-  /* 精通字複習的設定（v1.9）；舊資料沒有時用預設值 */
-  if(!['all','toeic','dipl'].includes(S.mrTag)) S.mrTag = 'all';
-  S.mrCount = MR_COUNTS.includes(+S.mrCount) ? +S.mrCount : 20;
-  if(!MR_TYPES.some(x => x[0] === S.mrType)) S.mrType = 'mix';
-  if(!['lv4','reset'].includes(S.mrDemote)) S.mrDemote = 'lv4';
+  /* v1.11：精通字複習改為固定規則，刪除 v1.9 的設定欄位 */
+  ['mrTag','mrCount','mrType','mrDemote'].forEach(k => delete S[k]);
   if(!L || typeof L !== 'object') L = {};
 }
 function loadAll(){
@@ -1165,7 +1159,7 @@ function viewHome(){
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
     <button class="btn" data-act="goto-import">匯入資料</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>
     ${gIds().length || rIds('all').length ? bankHead + bankCards() : ''}`;
-  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), mc = mrIds('all').length;
+  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), mc = mrIds().length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const nw = tl.nw || 0, newLeft = Math.max(0, S.dailyNew - nw), rv = tl.rv || 0;
   const acc = tl.n ? Math.round(tl.c / tl.n * 100) + '%' : '—';
@@ -1187,12 +1181,12 @@ function viewHome(){
       </div>
     </button>
     <div class="grp-h">單字${IB}</div>
-    ${tipBox(`完成五關的字在第 ${INTERVALS.join('、')} 天後複習，第一次複習答對才算精通；精通後的到期複習只考英選中。錯字池連續答對 3 次移出。精通字複習答錯會稍後再考一次，兩次都錯才退回。`)}
+    ${tipBox(`完成五關的字在第 ${INTERVALS.join('、')} 天後複習，第一次複習答對才算精通；精通後的到期複習只考英選中。錯字池連續答對 3 次移出。精通字複習不影響複習排程，所有精通字輪過一輪才會重複；答錯會稍後再考一次，兩次都錯就放回未學過的字。`)}
     <button class="mode main" data-act="start-today">
       <div class="t">今日訓練</div><div class="d">${left.length ? `還有${left.join('、')}` : '今天的訓練都完成了'}</div></button>
     ${modeCard('pick-mastery', '綜合精通', unmastered, `從暖身練到拼寫${S.skipWarmup ? '（跳過暖身）' : ''}`, big && unmastered > 0, big ? '所有字都完成五關了' : '總庫至少要有 4 個字')}
     ${modeCard('start-review', '到期複習', due, `今天到期 ${due} 個`, due > 0, '今天沒有到期的字')}
-    ${modeCard('mr-open', '精通字複習', mc, '隨時加強已精通的字，不影響複習排程', mc > 0 && big, '還沒有已精通的字')}
+    ${modeCard('mr-open', '精通字複習', mc, '英選中輪流出題，不限題數，隨時可以離開', mc > 0 && big, '還沒有已精通的字')}
     ${modeCard('start-pool', '錯字複習', pool, '連續答對 3 次移出錯字池', pool > 0, '錯字池是空的')}
     ${bankHead}${bankCards()}`;
 }
@@ -1760,72 +1754,36 @@ function PoolPhase(ids){
   };
 }
 
-/* ========== 精通字複習（v1.9） ==========
-   不必等到期，隨時從已精通的字出題；答對不改變遺忘曲線排程（只記入作答紀錄）。
-   答錯一次：同一次練習中隔幾題用同一種題型再考一次（避免手滑按錯就被退回）；
-   第二次也答錯才退回：依設定退回 Lv 4（拼寫關）或放回未學過的字。 */
-const mrIds = tag => Object.keys(W).filter(id => isMastered(id) && (tag === 'all' || hasTag(id, tag)));
-const mrTypeOf = t => t === 'mix' ? pick(['en2zh','zh2en','spell']) : t;
+/* ========== 精通字複習（v1.9；v1.11 改為固定規則） ==========
+   不必等到期，隨時從全部已精通的字出英選中，不限題數，隨時可以離開；答對不改變遺忘曲線排程。
+   輪流出題：在精通字複習出過次數（mrN）最少的字先出，同樣次數的隨機排列；中途離開時，下次接著出還沒輪到的字，全部輪過一輪才重複。
+   答錯一次：同一次練習中隔幾題再考一次（避免手滑按錯就被退回）；第二次也答錯就放回未學過的字。 */
+const mrIds = () => Object.keys(W).filter(isMastered);
 function demoteMastered(id){
   const p = prog(id);
-  p.confirmedAt = null; p.srs = null;
+  p.level = 0; p.learnedAt = null; p.confirmedAt = null; p.srs = null;
   SES.demoted = (SES.demoted || 0) + 1;
-  if(S.mrDemote === 'reset'){ p.level = 0; p.learnedAt = null; return '兩次都答錯，已放回未學過的字'; }
-  p.level = 4; return '兩次都答錯，退回 Lv 4（拼寫關），到綜合精通拼對就回到 Lv 5';
+  return '兩次都答錯，已放回未學過的字';
 }
 function MasteredPhase(ids){
   return {
-    label:'精通字複習', queue: ids.map(id => ({id, type: mrTypeOf(S.mrType)})), total: ids.length, done:0,
+    label:'精通字複習', queue: ids.map(id => ({id, type:'en2zh'})), total: ids.length, done:0,
     next(){ while(this.queue.length){ const it = this.queue.shift(); if(W[it.id] && isMastered(it.id)){ this.done++; return {type: it.type, id: it.id, retry: !!it.retry}; } } return null; },
     peek(){ const it = this.queue.find(x => W[x.id] && isMastered(x.id)); return it ? it.type : 'end'; },
     onResult(q, ok){
+      if(!q.retry) prog(q.id).mrN = (prog(q.id).mrN || 0) + 1;
       if(ok) return q.retry ? '這次答對了，維持精通' : '';
-      if(!q.retry){ this.queue.splice(Math.min(2, this.queue.length), 0, {id: q.id, type: q.type, retry: true}); this.total++; return '稍後再考一次，再答錯才會退回'; }
+      if(!q.retry){ this.queue.splice(Math.min(2, this.queue.length), 0, {id: q.id, type: q.type, retry: true}); this.total++; return '稍後再考一次，再答錯就放回未學'; }
       return demoteMastered(q.id);
     },
     progress(){ return {text:`${this.done} / ${this.total}`, ratio: this.total ? (this.done - 1) / this.total : 1}; }
   };
 }
-function openMrSheet(){
-  let tag = S.mrTag, count = S.mrCount, type = S.mrType, dem = S.mrDemote;
-  if(!mrIds(tag).length) tag = 'all';
-  const seg = (items, cur, key) => `<div class="seg" style="margin:0">${items.map(([k, t]) => `<button class="${String(cur) === String(k) ? 'on' : ''}" data-${key}="${k}">${t}</button>`).join('')}</div>`;
-  const draw = el => {
-    const k = Math.min(count, mrIds(tag).length);
-    el.querySelector('#mr-body').innerHTML = `<p class="small" style="margin:0 2px 12px">從已精通的字中挑最久沒練到的字出題，不必等到期。只用來加強記憶，答對不會改變遺忘曲線的複習日期。</p>
-      <p class="small" style="margin:0 2px 6px">範圍</p>${seg([['all', `全部 ${mrIds('all').length}`]].concat(TAGS.map(([k2, t]) => [k2, `${t} ${mrIds(k2).length}`])), tag, 'mrt')}
-      <p class="small" style="margin:16px 2px 6px">題型</p>${seg(MR_TYPES, type, 'mry')}
-      <p class="small" style="margin:16px 2px 6px">題數</p>${seg(MR_COUNTS.map(n => [n, `${n} 題`]), count, 'mrc')}
-      <p class="small" style="margin:16px 2px 6px">兩次都答錯時</p>${seg([['lv4','退回拼寫關'],['reset','放回未學']], dem, 'mrd')}
-      <p class="small" style="margin:8px 2px 0">答錯一次不會馬上退回：同一次練習中隔幾題再考一次，第二次也答錯才${dem === 'reset'
-        ? '放回未學過的字：等級歸零，要從暖身重新學起，會算進每日新字；若不在任何單字簿裡，之後也可能再被抽取。'
-        : '退回 Lv 4（拼寫關）：之後在綜合精通拼對就回到 Lv 5，隔天複習答對再算精通。'}兩種情況都會加入錯字池。</p>`;
-    const go = el.querySelector('#mr-go'); go.disabled = !k; go.textContent = k ? `開始（${k} 題）` : '這個範圍沒有已精通的字';
-  };
-  openSheet({title:'精通字複習', right:'取消', onRight: () => closeSheet(),
-    body:`<div id="mr-body"></div>`, foot:`<button class="btn" id="mr-go">開始</button>`,
-    mount: el => {
-      draw(el);
-      el.querySelector('#mr-body').addEventListener('click', e => {
-        const b = e.target.closest('button'); if(!b) return;
-        if(b.dataset.mrt) tag = b.dataset.mrt;
-        else if(b.dataset.mry) type = b.dataset.mry;
-        else if(b.dataset.mrc) count = +b.dataset.mrc;
-        else if(b.dataset.mrd) dem = b.dataset.mrd;
-        else return;
-        draw(el);
-      });
-      el.querySelector('#mr-go').addEventListener('click', () => {
-        if(!mrIds(tag).length) return;
-        S.mrTag = tag; S.mrCount = count; S.mrType = type; S.mrDemote = dem; save('settings');
-        closeSheet(); startMastered();
-      });
-    }});
-}
 function startMastered(){
-  const ids = mrIds(S.mrTag).sort((a, b) => (P[a].lastSeen || 0) - (P[b].lastSeen || 0)).slice(0, S.mrCount);
-  if(!ids.length){ toast('這個範圍沒有已精通的字'); render(); return; }
-  startSession([MasteredPhase(shuffle(ids))], {again: () => startMastered(), againLabel:'再複習一組'});
+  const n = id => (P[id] && P[id].mrN) || 0;
+  const ids = shuffle(mrIds()).sort((a, b) => n(a) - n(b));   /* 先打亂再依出過次數排序，同次數的保持隨機 */
+  if(!ids.length){ toast('還沒有已精通的字'); render(); return; }
+  startSession([MasteredPhase(ids)], {again: () => startMastered(), againLabel:'再複習一輪'});
 }
 
 /* ========== 例句克漏字（v1.3.0；v1.6 加入題庫） ========== */
@@ -2123,7 +2081,7 @@ function endSession(){
       <div><b>${s.five}</b><span>完成五關（待確認）</span></div><div><b>${s.confirmed}</b><span>確認精通</span></div>
     </div>
     ${s.poolOut ? `<p class="small" style="text-align:center;margin:-8px 0 0">移出錯字池 ${s.poolOut} 個字</p>` : ''}
-    ${s.demoted ? `<p class="small" style="text-align:center;margin:${s.poolOut ? 4 : -8}px 0 0;color:var(--brass)">${S.mrDemote === 'reset' ? '放回未學' : '退回 Lv 4'} ${s.demoted} 個字</p>` : ''}`;
+    ${s.demoted ? `<p class="small" style="text-align:center;margin:${s.poolOut ? 4 : -8}px 0 0;color:var(--brass)">放回未學 ${s.demoted} 個字</p>` : ''}`;
   $('#s-foot').innerHTML = s.opts.again ? `<div class="row"><button class="btn ghost" data-act="quit-now">回到主畫面</button><button class="btn" data-act="again">${s.opts.againLabel || '繼續下一組'}</button></div>`
     : `<button class="btn" data-act="quit-now">回到主畫面</button>`;
 }
@@ -2899,7 +2857,7 @@ const ACT = {
   'start-today': () => startToday(),
   'pick-mastery': () => { if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題'); openScopeSheet(); },
   'start-review': () => { const d = dueIds(); if(d.length) startSession([ReviewPhase(shuffle(d))]); },
-  'mr-open': () => { if(!mrIds('all').length) return toast('還沒有已精通的字'); if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題'); openMrSheet(); },
+  'mr-open': () => { if(!mrIds().length) return toast('還沒有已精通的字'); if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題'); startMastered(); },
   'start-pool': () => { const p = poolIds(); if(p.length) startSession([PoolPhase(shuffle(p).slice(0, POOL_CAP))]); },
   'start-cloze': () => startCloze(),
   word: el => openWordSheet(el.dataset.id),
