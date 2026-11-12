@@ -62,7 +62,7 @@ h2{font-size:19px;margin:28px 0 10px}
   background:var(--green);color:var(--on-green);font-weight:600;font-size:17px;width:100%}
 .btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line);font-weight:500}
 .btn.danger{background:var(--surface);color:var(--red);border:1px solid var(--line);font-weight:500}
-.btn.sm{min-height:40px;font-size:15px;width:auto;border-radius:10px;padding:0 14px}
+.btn.sm{min-height:40px;font-size:15px;width:auto;border-radius:10px;padding:0 14px;white-space:nowrap}
 .btn:disabled{opacity:.4}
 .row{display:flex;gap:10px;align-items:center}
 .row>.btn{flex:1}
@@ -125,9 +125,22 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .daynote{margin-top:14px;text-align:center}
 
 /* 練習 */
-.mode{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:12px}
-.mode .t{font-size:18px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
-.mode .d{color:var(--muted);font-size:14px;margin-top:3px}
+.mode{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:13px 18px;margin-bottom:10px}
+.mode .t{font-size:17px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.mode .d{color:var(--muted);font-size:14px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* v1.10：沒有題目的模式縮成一行灰字 */
+.mode.off{display:flex;align-items:baseline;gap:10px;padding:9px 18px;background:transparent;border-style:dashed}
+.mode.off .t{font-size:15px;color:var(--muted);flex:none}
+.mode.off .d{margin:0;font-size:13px;min-width:0}
+.home-top{display:flex;justify-content:space-between;align-items:baseline}
+.home-top h1{font-size:24px;margin:0}
+.grp-h{display:flex;align-items:center;gap:2px;font-size:13px;font-weight:600;color:var(--muted);margin:16px 4px 6px;letter-spacing:.04em}
+/* 說明按鈕 ⓘ 與展開的說明框（v1.10） */
+.ib{width:30px;height:30px;display:inline-grid;place-items:center;border-radius:50%;color:var(--muted);font-size:15px;font-weight:400;flex:none}
+.hrow{display:flex;align-items:center;gap:2px}
+.tipbox{margin:-2px 2px 10px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;line-height:1.65}
+.fold-btn{display:flex;justify-content:space-between;align-items:center;width:100%;padding:13px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-weight:600;margin-top:22px}
+.fold-btn span{color:var(--muted);font-weight:500;font-size:14px}
 .mode .n{font-family:var(--serif);font-size:22px;color:var(--green)}
 .mode:disabled{opacity:.5}
 .mode.main{background:var(--green-soft);border-color:transparent}
@@ -252,7 +265,8 @@ input[type=range]{width:100%;accent-color:var(--green)}
 .cloze .blank.bad{color:var(--red);border-color:var(--red);font-weight:600}
 .cloze-zh{color:var(--muted);font-size:15px;margin:6px 2px 4px;min-height:1.5em}
 /* 首頁今日進度（v1.6.1） */
-.today{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 16px 16px;margin:14px 0 14px}
+.today{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 16px 16px;margin:12px 0 4px}
+.today .hd b .small{font-weight:400;margin-left:4px}
 .today .hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .today .hd b{font-size:17px}
 .today .hd .streak2{font-size:14px;color:var(--brass);font-weight:600;white-space:nowrap}
@@ -396,7 +410,7 @@ input[type=range]{width:100%;accent-color:var(--green)}
 <script>
 'use strict';
 /* ========== 常數 ========== */
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 const BACKUP_VERSION = 4;        /* v1.6 起含克漏字題庫；v1.7 起含文法題庫與進度；v1.8 起含閱讀題庫與進度（v1.9 沒有新增資料種類） */
 const K = {words:'vocab_words', books:'vocab_books', progress:'vocab_progress', pool:'vocab_wrongPool', settings:'vocab_settings', log:'vocab_log', grammar:'vocab_grammar', reading:'vocab_reading'};
 /* v1.9：mr 開頭為「精通字複習」的設定（範圍、題數、題型、兩次答錯時的處理） */
@@ -618,11 +632,9 @@ async function importQuestions(arr){
   return {added, updated, skipped, noWord};
 }
 function qbankInfo(){
-  if(!QREADY) return '題庫載入中…';
+  if(!QREADY) return '載入中…';
   const n = Object.keys(Q).length, ids = Object.keys(QBY), miss = ids.filter(id => !W[id]).length;
-  return (n ? `題庫共 ${n} 題（${ids.length} 個字）${miss ? `，其中 ${miss} 個字還不在總庫` : ''}。` : '題庫目前是空的。')
-    + '例句克漏字會從已精通的字隨機出題：有題目的字從題庫與原例句中抽一題，沒有題目的字沿用原例句挖空。同一個題目 id 再次匯入會覆蓋。'
-    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+  return (n ? `${n} 題（${ids.length} 個字）${miss ? `，${miss} 個字不在總庫` : ''}` : '目前是空的') + (QDB ? '' : '\n無法使用本機資料庫，匯入的題目不會保存');
 }
 function updateQbankInfo(){
   const p = $('#qbank-info'); if(p) p.textContent = qbankInfo();
@@ -693,11 +705,9 @@ function gCatCount(){ const n = {}; gIds().forEach(id => { const c = GQ[id].cat;
 const gWrongIds = () => Object.keys(G.prog).filter(id => G.prog[id].wrong && GQ[id]);
 const gDueIds = () => { const t = today(); return gWrongIds().filter(id => G.prog[id].due <= t); };
 function gbankInfo(){
-  if(!QREADY) return '題庫載入中…';
-  const n = gIds().length, cc = gCatCount();
-  return (n ? `文法題庫共 ${n} 題：${GCATS.filter(([k]) => cc[k]).map(([k, t]) => `${t} ${cc[k]}`).join('、')}。` : '文法題庫目前是空的。')
-    + '同一個題目 id（gid）再次匯入會覆蓋。作答紀錄與錯題本另外保存，清空題庫不會刪除，重新匯入同 id 的題目後即可接續。'
-    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+  if(!QREADY) return '載入中…';
+  const n = gIds().length;
+  return (n ? `${n} 題（${Object.keys(gCatCount()).length} 類）` : '目前是空的') + (QDB ? '' : '\n無法使用本機資料庫，匯入的題目不會保存');
 }
 function updateGbankInfo(){
   const p = $('#gbank-info'); if(p) p.textContent = gbankInfo();
@@ -1120,64 +1130,71 @@ $('#sheet-wrap').addEventListener('click', e => { if(e.target.id === 'sheet-wrap
 
 /* ========== 主畫面 ========== */
 let TAB = 'home', WTAB = 'books', SEARCH = '', OPEN_BOOK = null, BOOK_EDIT = false, BOOK_SEL = new Set(), LIB_TAG = 'all', DRAWN = null;
+/* v1.10：畫面上可收合區塊的開關狀態（不存檔） */
+let BOOKS_DONE_OPEN = false, STATS_MORE = false, POOL_ALL = false, SET_PAGE = 'main';
 
 function render(){
   document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
   const v = $('#view');
   v.innerHTML = ({home:viewHome, words:viewWords, stats:viewStats, settings:viewSettings})[TAB]();
   if(TAB === 'words' && WTAB === 'library' && !OPEN_BOOK) renderLibList();
+  if(TAB === 'settings' && SET_PAGE === 'data') updateQbankInfo();
 }
 
+/* 說明按鈕 ⓘ：點了展開或收起緊接在標題後面的說明框（v1.10） */
+const IB = '<button class="ib" data-act="tip" aria-label="說明">ⓘ</button>';
+const tipBox = text => `<p class="small tipbox" hidden>${text}</p>`;
+/* 練習模式卡片：可以練時是一行說明的按鈕；沒有題目時縮成一行灰字（v1.10） */
+const modeCard = (act, t, n, d, on, off) => on
+  ? `<button class="mode" data-act="${act}"><div class="t">${t}${n != null ? `<span class="n">${n}</span>` : ''}</div><div class="d">${d}</div></button>`
+  : `<div class="mode off"><span class="t">${t}</span><span class="d">${off}</span></div>`;
+function bankCards(){
+  const gn = gIds().length, wb = gWrongIds().length, gdue = gDueIds().length, rn = rIds('all').length, cz = clozeIds().length;
+  const empty = QREADY ? '題庫是空的，到「設定 → 資料管理」匯入' : '題庫載入中…';
+  return modeCard('start-cloze', '例句克漏字', cz, `從已精通的字出題，每次 ${Math.min(CLOZE_COUNT, cz)} 題`, cz > 0 && Object.keys(W).length >= 4, '單字精通後就能練')
+    + modeCard('grammar-open', '文法練習', gn, wb ? `錯題本 ${wb} 題${gdue ? `，今天到期 ${gdue} 題` : ''}` : 'Part 5 文法題，作答後看解析', gn > 0, empty)
+    + modeCard('reading-open', '閱讀練習', rn, 'Part 6、Part 7 與 100 題閱讀模擬', rn > 0, empty);
+}
+let TODAY_OPEN = false;
 function viewHome(){
   const n = Object.keys(W).length;
   const d = new Date();
-  const dateStr = `${d.getMonth()+1} 月 ${d.getDate()} 日 星期${'日一二三四五六'[d.getDay()]}`;
-  if(!n) return `<p class="sub">${dateStr}</p><h1>練習</h1>
+  const top = `<div class="home-top"><h1>練習</h1><span class="sub">${d.getMonth()+1}/${d.getDate()}（${'日一二三四五六'[d.getDay()]}）</span></div>`;
+  const bankHead = `<div class="grp-h">題庫練習</div>`;
+  if(!n) return `${top}
     <div class="empty"><p>總庫還沒有單字。<br>先匯入一份單字 JSON，就能開始練習。</p>
-    <button class="btn" data-act="goto-import">匯入單字</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>
-    ${gIds().length ? grammarCard() : ''}${rIds('all').length ? readingCard() : ''}`;
-  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), cz = clozeIds().length, mc = mrIds('all').length;
+    <button class="btn" data-act="goto-import">匯入資料</button><button class="btn ghost" data-act="add-word" style="margin-top:10px">手動新增單字</button></div>
+    ${gIds().length || rIds('all').length ? bankHead + bankCards() : ''}`;
+  const due = dueIds().length, pool = poolIds().length, tl = todayLog(), st = streakDays(), mc = mrIds('all').length;
   const unmastered = Object.keys(W).filter(id => lvl(id) < 5).length;
   const nw = tl.nw || 0, newLeft = Math.max(0, S.dailyNew - nw), rv = tl.rv || 0;
   const acc = tl.n ? Math.round(tl.c / tl.n * 100) + '%' : '—';
   /* 今日訓練還剩什麼：到期複習、錯字（最多 20 個）、新字額度 */
   const poolLeft = Math.min(POOL_CAP, poolIds().filter(id => !dueIds().includes(id)).length);
   const left = [due && `到期複習 ${due}`, poolLeft && `錯字 ${poolLeft}`, newLeft && `新字 ${newLeft}`].filter(Boolean);
-  const tile = (lb, v, ft, cls = '', bar = null) => `<div class="tile2 ${cls}"><div class="lb">${lb}</div><div class="v">${v}</div>${bar != null ? `<div class="bar"><i style="width:${bar}%"></i></div>` : ''}<div class="ft">${ft}</div></div>`;
-  return `<p class="sub">${dateStr}</p><h1>練習</h1>
-    <section class="today" aria-label="今日進度">
-      <div class="hd"><b>今日進度</b><span class="streak2">連續 ${st} 天</span></div>
+  /* 今日進度四格平常只顯示數字；點卡片才展開每格的說明（v1.10） */
+  const tile = (lb, v, ft, cls = '', bar = null) => `<div class="tile2 ${cls}"><div class="lb">${lb}</div><div class="v">${v}</div>${bar != null ? `<div class="bar"><i style="width:${bar}%"></i></div>` : ''}${TODAY_OPEN ? `<div class="ft">${ft}</div>` : ''}</div>`;
+  const big = n >= 4;
+  return `${top}
+    <button class="today" data-act="today-toggle" aria-expanded="${TODAY_OPEN}">
+      <div class="hd"><b>今日進度<span class="small">${TODAY_OPEN ? '▴' : 'ⓘ'}</span></b><span class="streak2">連續 ${st} 天</span></div>
       <div class="sum">今日作答 ${tl.n || 0} 題，正確率 ${acc}</div>
       <div class="tgrid">
         ${tile('新學單字', `${nw}<small>/ ${S.dailyNew}</small>`, newLeft ? `還可以學 ${newLeft} 個` : '今日新字已學完', newLeft ? '' : 'done', S.dailyNew ? Math.min(100, nw / S.dailyNew * 100) : 100)}
-        ${tile('到期複習', `${rv}<small>題</small>`, due ? `還有 ${due} 個到期` : '今天的複習都完成了', due ? '' : 'done')}
-        ${tile('新增待確認', `${tl.p || 0}<small>個</small>`, '今天完成五關，明天第一次複習')}
-        ${tile('新增精通', `${tl.m || 0}<small>個</small>`, '今天第一次複習答對', 'gold')}
+        ${tile('到期複習', `${rv}<small>題</small>`, due ? `今天做了 ${rv} 題，還有 ${due} 個到期` : '今天的複習都完成了', due ? '' : 'done')}
+        ${tile('新增待確認', `${tl.p || 0}<small>個</small>`, '今天完成五關的字，明天第一次複習')}
+        ${tile('新增精通', `${tl.m || 0}<small>個</small>`, '今天第一次複習答對的字', 'gold')}
       </div>
-    </section>
+    </button>
+    <div class="grp-h">單字${IB}</div>
+    ${tipBox(`完成五關的字在第 ${INTERVALS.join('、')} 天後複習，第一次複習答對才算精通；精通後的到期複習只考英選中。錯字池連續答對 3 次移出。精通字複習答錯會稍後再考一次，兩次都錯才退回。`)}
     <button class="mode main" data-act="start-today">
-      <div class="t">今日訓練</div><div class="d">${left.length ? `還有${left.join('、')}。依序完成到期複習、錯字和新字。` : '今天的訓練都完成了。'}</div></button>
-    <button class="mode" data-act="pick-mastery">
-      <div class="t">綜合精通<span class="n">${unmastered}</span></div><div class="d">尚未精通的字從暖身練到拼寫，升到 Lv 5。${S.skipWarmup ? '目前設定為跳過暖身。' : ''}</div></button>
-    <button class="mode" data-act="start-review" ${due ? '' : 'disabled'}>
-      <div class="t">到期複習<span class="n">${due}</span></div><div class="d">完成五關的字在第 1、2、4、7、15、30、60、120 天後再複習，第一次複習答對才算精通；精通後只考英選中。</div></button>
-    <button class="mode" data-act="mr-open" ${mc ? '' : 'disabled'}>
-      <div class="t">精通字複習<span class="n">${mc}</span></div><div class="d">${mc ? '不必等到期，隨時從已精通的字挑最久沒練的出題，不影響複習排程。答錯會稍後再考一次，兩次都錯才退回。' : '單字精通後（第一次複習答對），就能在這裡隨時加強複習。'}</div></button>
-    <button class="mode" data-act="start-pool" ${pool ? '' : 'disabled'}>
-      <div class="t">錯字複習<span class="n">${pool}</span></div><div class="d">連續答對 3 次才會移出錯字池。</div></button>
-    <button class="mode" data-act="start-cloze" ${cz ? '' : 'disabled'}>
-      <div class="t">例句克漏字<span class="n">${cz}</span></div><div class="d">${cz ? `從已精通的字隨機出題（題庫題目與原例句），選出正確的答案，每次 ${Math.min(CLOZE_COUNT, cz)} 題。` : '單字精通後（第一次複習答對），就能用它的例句與題庫題目練習。'}</div></button>
-    ${grammarCard()}
-    ${readingCard()}
-`;
-}
-/* 練習頁的「文法練習」入口（v1.7）：顯示題庫題數與錯題本題數；題庫為空時停用 */
-function grammarCard(){
-  const n = gIds().length, wb = gWrongIds().length, due = gDueIds().length;
-  return `<button class="mode" data-act="grammar-open" ${n ? '' : 'disabled'}>
-      <div class="t">文法練習<span class="n">${n}</span></div><div class="d">${!QREADY ? '題庫載入中…' : n
-        ? `多益 Part 5 文法題，作答後看中譯與解析。${wb ? `錯題本 ${wb} 題${due ? `，今天到期 ${due} 題` : ''}。` : ''}`
-        : '文法題庫是空的，請到「設定 → 文法題庫」匯入題目。'}</div></button>`;
+      <div class="t">今日訓練</div><div class="d">${left.length ? `還有${left.join('、')}` : '今天的訓練都完成了'}</div></button>
+    ${modeCard('pick-mastery', '綜合精通', unmastered, `從暖身練到拼寫${S.skipWarmup ? '（跳過暖身）' : ''}`, big && unmastered > 0, big ? '所有字都完成五關了' : '總庫至少要有 4 個字')}
+    ${modeCard('start-review', '到期複習', due, `今天到期 ${due} 個`, due > 0, '今天沒有到期的字')}
+    ${modeCard('mr-open', '精通字複習', mc, '隨時加強已精通的字，不影響複習排程', mc > 0 && big, '還沒有已精通的字')}
+    ${modeCard('start-pool', '錯字複習', pool, '連續答對 3 次移出錯字池', pool > 0, '錯字池是空的')}
+    ${bankHead}${bankCards()}`;
 }
 
 function viewWords(){
@@ -1186,10 +1203,15 @@ function viewWords(){
   const tabs = `<div class="seg">${[['books','單字簿'],['library','總庫']].map(([k,t]) => `<button class="${WTAB===k?'on':''}" data-act="wtab" data-k="${k}">${t}</button>`).join('')}</div>`;
   let body = '';
   if(WTAB === 'books'){
-    body = B.length ? `<div class="panel">${B.map(b => { const s = bookStats(b); const r = s.total ? s.mastered/s.total*100 : 0;
-        return `<button class="item" data-act="open-book" data-id="${b.id}"><div class="grow"><div class="t">${esc(b.name)}</div>
-          <div class="d">已精通 ${s.mastered} / ${s.total}${s.pending ? `，待確認 ${s.pending}` : ''}${b.finishedAt ? '　全部精通' : ''}</div><div class="bar" style="margin-top:7px"><i style="width:${r}%"></i></div></div>${CHEV}</button>`; }).join('')}</div>`
-      : `<div class="empty">還沒有單字簿。點下方按鈕新增，再從總庫挑選單字。</div>`;
+    /* 全部精通的單字簿收進「已完成」，平常折疊（v1.10） */
+    const row = b => { const s = bookStats(b); const r = s.total ? s.mastered/s.total*100 : 0;
+      return `<button class="item" data-act="open-book" data-id="${b.id}"><div class="grow"><div class="t">${esc(b.name)}</div>
+        <div class="d">已精通 ${s.mastered} / ${s.total}${s.pending ? `，待確認 ${s.pending}` : ''}</div><div class="bar" style="margin-top:7px"><i style="width:${r}%"></i></div></div>${CHEV}</button>`; };
+    const act = B.filter(b => !b.finishedAt), done = B.filter(b => b.finishedAt);
+    body = !B.length ? `<div class="empty">還沒有單字簿。點下方按鈕新增，再從總庫挑選單字。</div>`
+      : (act.length ? `<div class="panel">${act.map(row).join('')}</div>` : `<div class="empty" style="padding:20px 12px">所有單字簿都全部精通了。</div>`)
+        + (done.length ? `<button class="fold-btn" data-act="books-done">已完成的單字簿<span>${done.length} 本 ${BOOKS_DONE_OPEN ? '▴' : '▾'}</span></button>
+          ${BOOKS_DONE_OPEN ? `<div class="panel" style="margin-top:8px">${done.map(row).join('')}</div>` : ''}` : '');
     body += `<div style="height:14px"></div><div class="row"><button class="btn ghost" data-act="new-book">新增單字簿</button><button class="btn ghost" data-act="draw-open">抽取單字</button></div>`;
   } else if(WTAB === 'library'){
     body = `<div class="stick-top"><div class="lib-top"><input class="search" id="lib-search" type="search" placeholder="搜尋英文或中文" value="${esc(SEARCH)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn sm" data-act="add-word">新增</button></div>
@@ -1233,6 +1255,10 @@ function viewBook(b){
 }
 
 function viewSettings(){
+  return SET_PAGE === 'data' ? viewDataPage() : viewSettingsMain();
+}
+/* 設定主頁只留外觀、學習、發音；匯入、題庫、匯出、備份與重設收進「資料管理」（v1.10） */
+function viewSettingsMain(){
   const sw = (k, on) => `<button class="switch ${on?'on':''}" data-act="toggle" data-k="${k}" aria-pressed="${on}"></button>`;
   const stp = (k, lo, hi) => `<div class="stepper"><button data-act="step" data-k="${k}" data-d="-1" data-lo="${lo}" data-hi="${hi}" aria-label="減少">−</button><span>${S[k]}</span><button data-act="step" data-k="${k}" data-d="1" data-lo="${lo}" data-hi="${hi}" aria-label="增加">+</button></div>`;
   return `<h1>設定</h1>
@@ -1241,69 +1267,55 @@ function viewSettings(){
     <h2>學習</h2>
     <div class="panel">
       <div class="lbl"><div class="grow">每日新字數</div>${stp('dailyNew',0,50)}</div>
-      <div class="lbl"><div class="grow">跳過暖身<div class="small">新字不顯示單字卡，直接從英選中開始</div></div>${sw('skipWarmup', S.skipWarmup)}</div>
-      <div class="lbl"><div class="grow">每輪字數<div class="small">綜合精通一次處理幾個字</div></div>${stp('batchSize',5,15)}</div>
+      <div class="lbl"><div class="grow">跳過暖身<div class="small">新字直接從英選中開始</div></div>${sw('skipWarmup', S.skipWarmup)}</div>
+      <div class="lbl"><div class="grow">每輪字數<div class="small">綜合精通一組幾個字</div></div>${stp('batchSize',5,15)}</div>
       <div class="lbl" id="train-src"><div class="grow">今日訓練的新字來源<div class="small">都不選代表全部單字</div></div></div>
       <div class="chips">${B.length ? B.map(b => `<button class="chip ${S.trainBooks.includes(b.id)?'on':''}" data-act="train-book" data-id="${b.id}">${esc(b.name)}</button>`).join('') : '<span class="small">尚無單字簿</span>'}</div>
     </div>
     <h2>發音</h2>
     <div class="panel">
-      <div class="lbl"><div class="grow">自動朗讀<div class="small">出題時與答錯時唸出單字</div></div>${sw('autoSpeak', S.autoSpeak)}</div>
-      <div class="lbl"><div class="grow">答對時播放發音<div class="small">每次答對都唸一次，播完再跳下一題</div></div>${sw('speakOnCorrect', S.speakOnCorrect)}</div>
+      <div class="lbl"><div class="grow">自動朗讀<div class="small">出題與答錯時唸出單字</div></div>${sw('autoSpeak', S.autoSpeak)}</div>
+      <div class="lbl"><div class="grow">答對時播放發音<div class="small">播完再跳下一題</div></div>${sw('speakOnCorrect', S.speakOnCorrect)}</div>
       <div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>語速</span><span class="small" id="rate-v">${(+S.rate).toFixed(2)}</span></div>
         <div class="row" style="margin-top:6px"><input type="range" id="rate" min="0.5" max="1.2" step="0.05" value="${S.rate}">${spkBtn('The treaty was ratified by the Legislative Yuan.', true)}</div></div>
     </div>
-    <h2 id="import-sec">匯入單字</h2>
+    <h2>資料</h2>
+    <div class="panel"><button class="item" data-act="set-page" data-k="data"><div class="grow"><div class="t">資料管理</div><div class="d">匯入、題庫、匯出、備份與重設</div></div>${CHEV}</button></div>
+    <p class="small" style="text-align:center;margin-top:18px">單字練習 v${APP_VERSION}　資料只存在這支手機的瀏覽器中</p>`;
+}
+function viewDataPage(){
+  const nEx = wordsForExport(EXPORT_TAG).length, nm = manualIds().length;
+  const bank = (name, id, act, has) => `<div class="lbl"><div class="grow">${name}<div class="small" id="${id}" style="white-space:pre-wrap"></div></div><button class="btn sm danger" data-act="${act}" ${has ? '' : 'disabled'}>清空</button></div>`;
+  return `<button class="btn sm ghost" data-act="set-page" data-k="main" style="margin-bottom:10px">‹ 設定</button>
+    <h1>資料管理</h1>
+    <h2 class="hrow" id="import-sec">匯入${IB}</h2>
+    ${tipBox('單字、克漏字題目、文法題目、閱讀題目都貼在這裡，App 會依內容自動判斷放進哪裡，混在一起貼也可以。單字只會放進總庫；與手動新增的字重複時，以完整資料覆蓋，學習進度保留。同一個 id 再次匯入會覆蓋。貼上備份文字則會改為還原備份。')}
     <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">匯入的單字只會放進總庫。要分組練習，請到「單字 → 單字簿」挑選。與手動新增的字重複時，以匯入的完整資料覆蓋，學習進度保留。</p>
-      <textarea class="code" id="import-text" placeholder='貼上單字 JSON，例如 [{"id":"w_ratify","en":"ratify","zh":"批准（條約）","pos":"v."}]' autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="import-file">選擇檔案</button><button class="btn sm" data-act="import-words">匯入</button></div>
+      <textarea class="code" id="import-text" placeholder="貼上 Claude 提供的 JSON，或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="import-file">選擇檔案</button><button class="btn sm" data-act="import-go">匯入</button></div>
       <div class="result" id="import-result"></div>
     </div>
-    <h2>匯出單字庫</h2>
+    <h2 class="hrow">題庫${IB}</h2>
+    ${tipBox('清空題庫不會刪除單字與學習進度；文法錯題本、閱讀作答紀錄與模擬成績也會保留，重新匯入同 id 的題目即可接續。')}
+    <div class="panel">${bank('克漏字', 'qbank-info', 'qclear', Object.keys(Q).length)}${bank('文法', 'gbank-info', 'gclear', gIds().length)}${bank('閱讀', 'rbank-info', 'rclear', rIds('all').length)}</div>
+    <h2 class="hrow">匯出單字庫${IB}</h2>
+    ${tipBox('匯出總庫的單字內容（不含學習進度），格式與匯入相同。可傳給 Claude 檢查，修正後的檔案直接匯入即可覆蓋，進度保留。')}
     <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">匯出總庫的單字內容（不含學習進度），格式與匯入相同。可傳給 Claude 檢查，修正後的檔案直接匯入即可覆蓋，進度保留。</p>
       <div class="seg" style="margin:0 0 10px">${[['all','全部']].concat(TAGS).map(([k,t]) => `<button class="${EXPORT_TAG===k?'on':''}" data-act="export-tag" data-k="${k}">${t}</button>`).join('')}</div>
-      <button class="btn sm" data-act="export-words" ${wordsForExport(EXPORT_TAG).length ? '' : 'disabled'}>匯出 ${wordsForExport(EXPORT_TAG).length} 個字</button>
+      <button class="btn sm" data-act="export-words" ${nEx ? '' : 'disabled'}>匯出 ${nEx} 個字</button>
     </div>
-    <h2 id="qbank-sec">克漏字題庫</h2>
+    <h2 class="hrow">手動新增的單字${IB}</h2>
+    ${tipBox('複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入，匯入後自動覆蓋手動版本。')}
+    <div class="panel"><div class="lbl"><div class="grow">目前 ${nm} 個</div>
+      <div class="row" style="gap:8px"><button class="btn sm ghost" data-act="add-word">新增</button><button class="btn sm ghost" data-act="copy-manual" ${nm ? '' : 'disabled'}>複製清單</button></div></div></div>
+    <h2 class="hrow">備份${IB}</h2>
+    ${tipBox('備份包含單字、單字簿、進度、錯字池、設定、作答紀錄、三個題庫，以及文法與閱讀的練習進度。換手機或換網址前請先匯出，平時建議每週一次。')}
     <div class="panel" style="padding:14px 16px">
-      <p class="small" id="qbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(qbankInfo())}</p>
-      <textarea class="code" id="qimport-text" placeholder="貼上 Claude 提供的題目 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="qimport-file">選擇檔案</button><button class="btn sm" data-act="qimport">匯入題目</button></div>
-      <div class="result" id="qimport-result"></div>
-      <button class="btn sm danger" data-act="qclear" style="margin-top:12px" ${Object.keys(Q).length ? '' : 'disabled'}>清空題庫</button>
-    </div>
-    <h2 id="gbank-sec">文法題庫</h2>
-    <div class="panel" style="padding:14px 16px">
-      <p class="small" id="gbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(gbankInfo())}</p>
-      <textarea class="code" id="gimport-text" placeholder="貼上 Claude 提供的文法題 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="gimport-file">選擇檔案</button><button class="btn sm" data-act="gimport">匯入題目</button></div>
-      <div class="result" id="gimport-result"></div>
-      <button class="btn sm danger" data-act="gclear" style="margin-top:12px" ${gIds().length ? '' : 'disabled'}>清空文法題庫</button>
-    </div>
-    <h2 id="rbank-sec">閱讀題庫</h2>
-    <div class="panel" style="padding:14px 16px">
-      <p class="small" id="rbank-info" style="margin:0 0 10px;white-space:pre-wrap">${esc(rbankInfo())}</p>
-      <textarea class="code" id="rimport-text" placeholder="貼上 Claude 提供的閱讀題 JSON（以 [ 開頭、以 ] 結尾），或按「選擇檔案」" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="rimport-file">選擇檔案</button><button class="btn sm" data-act="rimport">匯入題目</button></div>
-      <div class="result" id="rimport-result"></div>
-      <button class="btn sm danger" data-act="rclear" style="margin-top:12px" ${rIds('all').length ? '' : 'disabled'}>清空閱讀題庫</button>
-    </div>
-    <h2>手動新增的單字</h2>
-    <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">目前有 ${manualIds().length} 個手動新增的字。複製清單（每行一個英文）貼給 Claude，就能取得完整資料再匯入。</p>
-      <div class="row"><button class="btn sm ghost" data-act="add-word">新增單字</button><button class="btn sm ghost" data-act="copy-manual" ${manualIds().length ? '' : 'disabled'}>複製手動新增清單</button></div>
-    </div>
-    <h2>備份</h2>
-    <div class="panel" style="padding:14px 16px">
-      <p class="small" style="margin:0 0 10px">備份包含單字、單字簿、進度、錯字池、設定、作答紀錄、克漏字題庫、文法題庫、閱讀題庫，以及文法與閱讀的練習進度。換手機或換網址前請先匯出。</p>
       <div class="row"><button class="btn sm" data-act="backup-export">匯出備份檔</button><button class="btn sm ghost" data-act="backup-copy">複製備份文字</button></div>
       <div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="backup-import-file">從檔案還原</button><button class="btn sm ghost" data-act="backup-import-text">貼上文字還原</button></div>
     </div>
-    <h2>其他</h2>
-    <button class="btn danger" data-act="reset-all">全部重設</button>
-    <p class="small" style="text-align:center;margin-top:18px">單字練習 v${APP_VERSION}　資料只存在這支手機的瀏覽器中</p>`;
+    <h2>重設</h2>
+    <button class="btn danger" data-act="reset-all">全部重設</button>`;
 }
 
 /* ========== 統計頁 ========== */
@@ -1335,7 +1347,7 @@ function colsHTML(id, cols, cap){
 const CHART_TIPS = {};
 function viewStats(){
   const ids = Object.keys(W);
-  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>${Object.keys(G.prog).length ? gStatsHTML() : ''}${Object.keys(R.prog).length || R.mocks.length ? rStatsHTML() : ''}`;
+  if(!ids.length) return `<h1>統計</h1><div class="empty">總庫還沒有單字。匯入單字並開始練習後，這裡會顯示學習進度與常錯的字。</div>${gStatsHTML()}${rStatsHTML()}`;
   const t = today(), all = progressOf(ids);
   let n = 0, c = 0; const ty = {}, sp = {s:0, m:0, e:0};
   Object.values(L).forEach(d => { n += d.n || 0; c += d.c || 0;
@@ -1354,63 +1366,63 @@ function viewStats(){
     for(let i = 0; i < 7; i++){ if(i === 0 ? p.srs.due <= t : p.srs.due === addDays(t, i)){ due[i]++; break; } } });
   const fut = due.map((v, i) => { const k = addDays(t, i); return {v, show: true, now: i === 0, label: i === 0 ? '今' : weekday(k), tip: `${i === 0 ? '今天（含逾期）' : `${mmdd2(k)}（${weekday(k)}）`}到期 ${v} 個字`}; });
   CHART_TIPS['ch-due'] = fut.map(d => d.tip);
+  const hasDue = due.some(Boolean);
   /* 等級分布 */
   const lvCount = [0,0,0,0,0,0]; ids.forEach(id => lvCount[lvl(id)]++);
-  /* 常錯 */
-  const pool = poolIds();
+  /* 常錯：錯字池平常只列前 5 個（v1.10） */
+  const pool = poolIds(), poolShown = POOL_ALL ? pool : pool.slice(0, 5);
   const worst = ids.filter(id => P[id] && P[id].wrongTotal > 0).sort((a, b) => P[b].wrongTotal - P[a].wrongTotal || (P[b].lastSeen||0) - (P[a].lastSeen||0)).slice(0, 20);
   const wordRow = (id, right) => `<button class="item" data-act="word-stat" data-id="${id}"><div class="grow"><div class="t en">${esc(W[id].en)}${manualTag(id)}</div><div class="d">${esc(W[id].pos)} ${esc(W[id].zh)}</div></div>${right}</button>`;
   const errBody = ERR_TAB === 'pool'
-    ? (pool.length ? `<p class="small" style="margin:0 2px 8px">共 ${pool.length} 個字。小圓點是目前連續答對次數，連續答對 3 次就移出。</p>
-        <div class="panel">${pool.map(id => { const e = POOL.find(x => x.wordId === id);
-          return wordRow(id, `<span class="lv">${[1,2,3].map(i => `<i class="${i<=e.streak?'f':''}"></i>`).join('')}</span>`); }).join('')}</div>
+    ? (pool.length ? `<div class="panel">${poolShown.map(id => { const e = POOL.find(x => x.wordId === id);
+          return wordRow(id, `<span class="lv">${[1,2,3].map(i => `<i class="${i<=e.streak?'f':''}"></i>`).join('')}</span>`); }).join('')}
+          ${pool.length > 5 ? `<button class="item" data-act="pool-all"><div class="grow t" style="color:var(--green)">${POOL_ALL ? '收起' : `看全部 ${pool.length} 個字`}</div></button>` : ''}</div>
         <div class="row" style="margin-top:12px"><button class="btn sm" data-act="start-pool">練習錯字</button><button class="btn sm ghost" data-act="pool-to-book">全部收進單字簿</button></div>`
       : `<div class="empty" style="padding:22px 12px">錯字池是空的。練習中答錯的字會自動放進來。</div>`)
-    : (worst.length ? `<p class="small" style="margin:0 2px 8px">累計答錯次數最多的前 ${worst.length} 個字（含已移出錯字池的字）。</p>
-        <div class="panel">${worst.map(id => wordRow(id, `<span class="small" style="flex:none">錯 ${P[id].wrongTotal} 次</span>`)).join('')}</div>`
+    : (worst.length ? `<div class="panel">${worst.map(id => wordRow(id, `<span class="small" style="flex:none">錯 ${P[id].wrongTotal} 次</span>`)).join('')}</div>`
       : `<div class="empty" style="padding:22px 12px">還沒有答錯過的字。</div>`);
   const groups = TAGS.map(([k, name]) => [name, progressOf(ids.filter(id => hasTag(id, k)))]).filter(g => g[1].total);
   const types = Object.keys(TYPE_LABEL).filter(k => ty[k] && ty[k].c + ty[k].w);
   const spT = sp.s + sp.m + sp.e;
+  /* 不常看的統計收進「更多統計」，沒有資料的區塊不顯示（v1.10） */
+  const more = !STATS_MORE ? '' : [
+    n ? `<h2>近 14 天作答</h2><div class="panel" style="padding:14px 12px 10px">${colsHTML('ch-days', days, days[13].tip)}</div>` : '',
+    `<h2>等級分布</h2><div class="panel" style="padding:2px 16px 14px"><div class="lvdist" style="border:0;margin-top:10px">${lvCount.map((v, i) => `<div><b>${v}</b><span>Lv ${i}</span></div>`).join('')}</div></div>`,
+    types.length ? `<h2>題型正確率</h2><div class="panel">${types.map(k => { const x = ty[k], tot = x.c + x.w, r = pct(x.c, tot);
+      return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${TYPE_LABEL[k]}</span><span class="small">${r}%（${tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${r}%"></i></div></div>`; }).join('')}</div>` : '',
+    spT ? `<h2 class="hrow">拼寫錯在哪裡${IB}</h2>${tipBox('以第一個打錯的字母位置判斷：前 1/3 為字首、中間 1/3 為字中、後 1/3 為字尾。')}
+      <div class="panel">${[['s','字首'],['m','字中'],['e','字尾']].map(([k, tt]) => `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${tt}</span><span class="small">${sp[k]} 次（${pct(sp[k], spT)}%）</span></div><div class="bar" style="margin-top:6px"><i style="width:${pct(sp[k], spT)}%"></i></div></div>`).join('')}
+      ${spT >= 5 ? `<p class="small" style="margin:10px 16px 14px">最常錯在${({s:'字首',m:'字中',e:'字尾'})[['s','m','e'].sort((a, b) => sp[b] - sp[a])[0]]}，拼寫時可多注意這一段。</p>` : ''}</div>` : ''
+  ].join('');
   return `<h1>統計</h1>
     <div class="stat-line"><span><b>${streakDays()}</b>連續天數</span><span><b>${n}</b>累計作答</span><span><b>${n ? pct(c, n) + '%' : '—'}</b>正確率</span></div>
 
-    <h2 style="margin-top:8px">學習進度</h2>
+    <h2 class="hrow" style="margin-top:8px">學習進度${IB}</h2>
+    ${tipBox('「學習中」是 Lv 1–4 或看過暖身卡的字；「待確認」是完成五關、但還沒通過第一次複習的字，第一次複習答對後才算精通。')}
     <div class="panel" style="padding:14px 16px">
       <div class="row" style="justify-content:space-between;align-items:baseline"><span>總庫 ${all.total} 字</span><span class="small">精通 ${pct(all.mastered, all.total)}%</span></div>
       ${stackHTML(all)}
       <div class="legend"><span><i style="background:var(--brass)"></i>精通 ${all.mastered}</span><span><i style="background:${PENDING_C}"></i>待確認 ${all.pending}</span><span><i style="background:var(--green)"></i>學習中 ${all.learning}</span><span><i style="background:var(--line)"></i>未學 ${all.fresh}</span></div>
       ${groups.map(([name, pr]) => `<div class="grp"><div class="row" style="justify-content:space-between"><span>${name}</span><span class="small">精通 ${pr.mastered}／待確認 ${pr.pending}／學習中 ${pr.learning}／共 ${pr.total}</span></div>${stackHTML(pr)}</div>`).join('')}
-      <div class="lvdist">${lvCount.map((v, i) => `<div><b>${v}</b><span>Lv ${i}</span></div>`).join('')}</div>
-      <p class="small" style="margin:12px 0 0">「待確認」是完成五關、但還沒通過第一次複習的字；第一次複習答對後才算精通。</p>
     </div>
 
-    <h2>已精通單字</h2>
-    <div class="panel"><button class="item" data-act="mastered-list" ${all.mastered ? '' : 'disabled'}><div class="grow"><div class="t">${all.mastered} 個字</div>
-      <div class="d">${all.mastered ? '依下次複習日期排列，可搜尋' : '通過第一次複習的字會列在這裡'}</div></div>${all.mastered ? CHEV : ''}</button></div>
+    ${all.mastered ? `<h2>已精通單字</h2>
+    <div class="panel"><button class="item" data-act="mastered-list"><div class="grow"><div class="t">${all.mastered} 個字</div>
+      <div class="d">依下次複習日期排列，可搜尋</div></div>${CHEV}</button></div>` : ''}
 
-    <h2>常錯單字</h2>
+    <h2 class="hrow">常錯單字${IB}</h2>
+    ${tipBox('錯字池：小圓點是目前連續答對次數，連續答對 3 次就移出。累計最常錯：答錯次數最多的前 20 個字，含已移出錯字池的字。')}
     <div class="seg" style="margin:0 0 12px">${[['pool',`錯字池（${pool.length}）`],['worst','累計最常錯']].map(([k, tt]) => `<button class="${ERR_TAB===k?'on':''}" data-act="err-tab" data-k="${k}">${tt}</button>`).join('')}</div>
     ${errBody}
 
-    <h2>近 14 天作答</h2>
-    <div class="panel" style="padding:14px 12px 10px">${n ? colsHTML('ch-days', days, days[13].tip) : '<p class="small" style="margin:4px">還沒有作答紀錄。</p>'}</div>
-
-    <h2>未來 7 天複習量</h2>
-    <div class="panel" style="padding:14px 12px 10px">${colsHTML('ch-due', fut, fut[0].tip)}</div>
-
-    <h2>題型正確率</h2>
-    <div class="panel">${types.length ? types.map(k => { const x = ty[k], tot = x.c + x.w, r = pct(x.c, tot);
-      return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${TYPE_LABEL[k]}</span><span class="small">${r}%（${tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${r}%"></i></div></div>`; }).join('')
-      : '<p class="small" style="margin:14px 16px">還沒有單字題的作答紀錄。</p>'}</div>
+    ${hasDue ? `<h2>未來 7 天複習量</h2>
+    <div class="panel" style="padding:14px 12px 10px">${colsHTML('ch-due', fut, fut[0].tip)}</div>` : ''}
 
     ${gStatsHTML()}
     ${rStatsHTML()}
 
-    <h2>拼寫錯在哪裡</h2>
-    <div class="panel">${spT ? [['s','字首（前 1/3）'],['m','字中（中間 1/3）'],['e','字尾（後 1/3）']].map(([k, tt]) => `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${tt}</span><span class="small">${sp[k]} 次（${pct(sp[k], spT)}%）</span></div><div class="bar" style="margin-top:6px"><i style="width:${pct(sp[k], spT)}%"></i></div></div>`).join('')
-      + `<p class="small" style="margin:10px 16px 14px">以第一個打錯的字母位置判斷。${(() => { const top = ['s','m','e'].sort((a, b) => sp[b] - sp[a])[0]; return spT >= 5 ? `最常錯在${({s:'字首',m:'字中',e:'字尾'})[top]}，拼寫時可多注意這一段。` : ''; })()}</p>`
-      : '<p class="small" style="margin:14px 16px">還沒有拼錯的紀錄。</p>'}</div>`;
+    <button class="fold-btn" data-act="stats-more">更多統計<span>${STATS_MORE ? '收起 ▴' : '作答紀錄、等級分布、題型、拼寫 ▾'}</span></button>
+    ${more}`;
 }
 function openMasteredList(){
   const ids = Object.keys(W).filter(isMastered).sort((a, b) => ((P[a].srs && P[a].srs.due) || '9').localeCompare((P[b].srs && P[b].srs.due) || '9') || W[a].en.localeCompare(W[b].en));
@@ -2316,14 +2328,15 @@ function gStatsHTML(){
   const rows = GCATS.filter(([k]) => st[k] && st[k].c + st[k].w).map(([k, t]) => { const x = st[k], tot = x.c + x.w; return {k, t, tot, acc: x.c / tot}; })
     .sort((a, b) => a.acc - b.acc || b.tot - a.tot);
   const weak = rows.find(r => r.tot >= 5);
-  return `<h2>文法練習</h2>
+  if(!rows.length && !wb) return '';      /* 沒有作答紀錄時不顯示（v1.10） */
+  return `<h2 class="hrow">文法練習${IB}</h2>
+    ${tipBox('各類型依正確率由低到高排列；作答 5 題以上的類型才會標示「最弱」。')}
     <div class="panel">
-      <div class="lbl"><div class="grow">錯題本<div class="small">${wb ? (due ? `今天到期 ${due} 題` : '今天沒有到期的題目') : '答錯的題目會放進來'}</div></div><span>${wb} 題</span></div>
-      ${rows.length ? rows.map(r => { const p = Math.round(r.acc * 100);
-        return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${r.t}${weak && weak.k === r.k ? '<span class="tag weak">最弱</span>' : ''}</span><span class="small">${p}%（${r.tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${p}%"></i></div></div>`; }).join('')
-        : '<p class="small" style="margin:14px 16px">還沒有文法作答紀錄。</p>'}
+      <div class="lbl"><div class="grow">錯題本<div class="small">${wb ? (due ? `今天到期 ${due} 題` : '今天沒有到期的題目') : '目前沒有錯題'}</div></div><span>${wb} 題</span></div>
+      ${rows.map(r => { const p = Math.round(r.acc * 100);
+        return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${r.t}${weak && weak.k === r.k ? '<span class="tag weak">最弱</span>' : ''}</span><span class="small">${p}%（${r.tot} 題）</span></div><div class="bar" style="margin-top:6px"><i style="width:${p}%"></i></div></div>`; }).join('')}
     </div>
-    ${n ? `<p class="small" style="margin:8px 4px 0">累計作答 ${n} 題，正確率 ${pct(c, n)}%。依正確率由低到高排列；作答 5 題以上的類型才會標示「最弱」。</p>` : ''}`;
+    ${n ? `<p class="small" style="margin:8px 4px 0">累計作答 ${n} 題，正確率 ${pct(c, n)}%</p>` : ''}`;
 }
 
 /* ========== 閱讀練習（v1.8，多益 Part 6 段落填空、Part 7 閱讀理解，存在 IndexedDB 的 reading 資料表） ==========
@@ -2415,37 +2428,15 @@ function rIds(mode){
 }
 const rQn = ids => ids.reduce((a, id) => a + RB[id].qs.length, 0);
 function rbankInfo(){
-  if(!QREADY) return '題庫載入中…';
+  if(!QREADY) return '載入中…';
   const all = rIds('all');
-  if(!all.length) return '閱讀題庫目前是空的。匯入 Claude 提供的 Part 6、Part 7 題目後，就能在練習頁進行閱讀練習與閱讀模擬。'
-    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+  if(!all.length) return '目前是空的' + (QDB ? '' : '\n無法使用本機資料庫，匯入的題目不會保存');
   const p6 = rIds('p6'), s = rIds('p7s'), d = rIds('p7d'), t = rIds('p7t');
-  return `閱讀題庫共 ${all.length} 篇、${rQn(all)} 題：Part 6 ${p6.length} 篇（${rQn(p6)} 題）、Part 7 單篇 ${s.length} 篇（${rQn(s)} 題）、雙篇 ${d.length} 組（${rQn(d)} 題）、三篇 ${t.length} 組（${rQn(t)} 題）。`
-    + '同一個 id（rid）再次匯入會覆蓋。作答紀錄另外保存，清空題庫不會刪除。'
-    + (QDB ? '' : '\n目前無法使用本機資料庫，匯入的題目只會暫存在這次開啟的畫面中，不會保存。');
+  return `${all.length} 篇、${rQn(all)} 題\nPart 6 ${p6.length}・單篇 ${s.length}・雙篇 ${d.length}・三篇 ${t.length}` + (QDB ? '' : '\n無法使用本機資料庫，匯入的題目不會保存');
 }
 function updateRbankInfo(){
   const p = $('#rbank-info'); if(p) p.textContent = rbankInfo();
   const c = $('[data-act=rclear]'); if(c) c.disabled = !rIds('all').length;
-}
-async function doImportReading(text){
-  const out = $('#rimport-result');
-  try{
-    const r = await importReading(parseJSON(text));
-    out.style.color = '';
-    out.textContent = `已放進閱讀題庫：新增 ${r.added} 篇，更新 ${r.updated} 篇（共 ${r.qn} 題）`
-      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
-    const ta = $('#rimport-text'); if(ta) ta.value = '';
-    updateRbankInfo();
-    toast(`閱讀題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
-  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
-}
-function readingCard(){
-  const all = rIds('all');
-  return `<button class="mode" data-act="reading-open" ${all.length ? '' : 'disabled'}>
-      <div class="t">閱讀練習<span class="n">${all.length}</span></div><div class="d">${!QREADY ? '題庫載入中…' : all.length
-        ? `多益 Part 6 段落填空、Part 7 單篇與多篇閱讀，以及 100 題、75 分鐘的閱讀模擬。`
-        : '閱讀題庫是空的，請到「設定 → 閱讀題庫」匯入題目。'}</div></button>`;
 }
 
 /* ---------- 文章顯示 ---------- */
@@ -2797,10 +2788,11 @@ function rStatsHTML(){
   const t = R_QT.filter(([k]) => qt[k] && qt[k].c + qt[k].w).map(([k, name]) => ({k, name, x: qt[k], acc: qt[k].c / (qt[k].c + qt[k].w)})).sort((a, b) => a.acc - b.acc);
   const weak = t.find(x => x.x.c + x.x.w >= 5);
   const mocks = R.mocks.slice(-5).reverse();
-  if(!g.length && !mocks.length) return `<h2>閱讀練習</h2><div class="panel"><p class="small" style="margin:14px 16px">還沒有閱讀練習的作答紀錄。</p></div>`;
-  return `<h2>閱讀練習</h2>
-    <div class="panel">${g.map(k => row(R_GROUP[k], grp[k])).join('') || '<p class="small" style="margin:14px 16px">還沒有 Part 6、7 的練習紀錄。</p>'}</div>
-    ${t.length ? `<p class="small" style="margin:12px 4px 6px">各題型正確率（由低到高；作答 5 題以上的類型才標示「最弱」）</p><div class="panel">${t.map(x => row(x.name, x.x, weak && weak.k === x.k ? '<span class="tag weak">最弱</span>' : '')).join('')}</div>` : ''}
+  if(!g.length && !mocks.length) return '';      /* 沒有作答紀錄時不顯示（v1.10） */
+  return `<h2 class="hrow">閱讀練習${IB}</h2>
+    ${tipBox('各題型依正確率由低到高排列；作答 5 題以上的題型才會標示「最弱」。')}
+    ${g.length ? `<div class="panel">${g.map(k => row(R_GROUP[k], grp[k])).join('')}</div>` : ''}
+    ${t.length ? `<p class="small" style="margin:12px 4px 6px">各題型正確率</p><div class="panel">${t.map(x => row(x.name, x.x, weak && weak.k === x.k ? '<span class="tag weak">最弱</span>' : '')).join('')}</div>` : ''}
     ${mocks.length ? `<p class="small" style="margin:12px 4px 6px">最近的閱讀模擬</p><div class="panel">${mocks.map(m => { const tot = m.p5[0] + m.p6[0] + m.p7[0], n = m.p5[1] + m.p6[1] + m.p7[1];
       return `<div class="lbl" style="display:block"><div class="row" style="justify-content:space-between"><span>${mmdd2(m.d)}・答對 ${tot} / ${n}</span><span class="small">用時 ${fmtTime(m.ms)}</span></div>
         <div class="small">Part 5 ${m.p5[0]}/${m.p5[1]}・Part 6 ${m.p6[0]}/${m.p6[1]}・Part 7 ${m.p7[0]}/${m.p7[1]}</div></div>`; }).join('')}</div>` : ''}
@@ -2819,47 +2811,51 @@ function parseJSON(text){
   try{ return JSON.parse(text.replace(/^﻿/, '')); }
   catch(e){ throw new Error('JSON 格式有誤，請檢查是否完整複製（含開頭與結尾的括號）。'); }
 }
-function doImportWords(text){
+/* 統一匯入（v1.10）：依每一筆的欄位判斷種類（rid 閱讀、gid 文法、qid 克漏字、id 單字），可混在一起貼；
+   貼上的是備份（物件且 app 為 vocab）時改為還原備份 */
+const skipText = sk => sk.length ? `\n　略過 ${sk.length} 筆：\n　${sk.slice(0,10).join('\n　')}${sk.length > 10 ? '\n　…' : ''}` : '';
+async function doImport(text){
   const out = $('#import-result');
+  const show = (msg, bad) => { if(out){ out.style.color = bad ? 'var(--red)' : ''; out.textContent = msg; } };
+  let data;
+  try{ data = parseJSON(text); }catch(e){ return show(e.message, true); }
+  if(data && typeof data === 'object' && !Array.isArray(data) && data.app === 'vocab' && data.data) return doRestore(text);
+  if(!Array.isArray(data)) return show('最外層必須是陣列，也就是以 [ 開頭、以 ] 結尾。若要還原備份，請貼上完整的備份文字。', true);
+  const grp = {w:[], q:[], g:[], r:[]}, unk = [];
+  data.forEach((x, i) => { const k = !x || typeof x !== 'object' || Array.isArray(x) ? null : 'rid' in x ? 'r' : 'gid' in x ? 'g' : 'qid' in x ? 'q' : 'id' in x ? 'w' : null;
+    k ? grp[k].push(x) : unk.push(i + 1); });
+  const lines = [], sum = [];
+  let bad = false;
   try{
-    const r = importWords(parseJSON(text));
-    const notFound = r.skipped.filter(x => x.endsWith('總庫沒有這個字')).length;
-    out.style.color = '';
-    out.textContent = `已放進總庫：新增 ${r.added} 個字，更新 ${r.updated} 個字`
-      + (r.tagged ? `\n已加上分組標籤 ${r.tagged} 個字${r.tagSame ? `（其中 ${r.tagSame} 個原本就已有這些分組）` : ''}` : '')
-      + (r.replaced.length ? `\n已用完整資料覆蓋 ${r.replaced.length} 個手動新增的字（進度保留）：${r.replaced.slice(0,30).join('、')}${r.replaced.length > 30 ? '…' : ''}` : '')
-      + (r.badTags.length ? `\n無法辨識的分組標籤已忽略：${r.badTags.join('、')}` : '')
-      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆${notFound ? `（其中 ${notFound} 筆總庫沒有這個字）` : ''}：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
-    $('#import-text').value = '';
-    toast(`匯入完成：新增 ${r.added}、更新 ${r.updated}${r.tagged ? `、加上分組 ${r.tagged}` : ''}`);
-  }catch(e){ out.style.color = 'var(--red)'; out.textContent = e.message; }
-}
-/* 匯入克漏字題目（v1.6） */
-async function doImportQuestions(text){
-  const out = $('#qimport-result');
-  try{
-    const r = await importQuestions(parseJSON(text));
-    out.style.color = '';
-    out.textContent = `已放進題庫：新增 ${r.added} 題，更新 ${r.updated} 題`
-      + (r.noWord ? `\n其中 ${r.noWord} 個字還不在總庫，先存著，匯入這些字後就會出題` : '')
-      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
-    const ta = $('#qimport-text'); if(ta) ta.value = '';
-    updateQbankInfo();
-    toast(`題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
-  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
-}
-/* 匯入文法題目（v1.7） */
-async function doImportGrammar(text){
-  const out = $('#gimport-result');
-  try{
-    const r = await importGrammar(parseJSON(text));
-    out.style.color = '';
-    out.textContent = `已放進文法題庫：新增 ${r.added} 題，更新 ${r.updated} 題`
-      + (r.skipped.length ? `\n略過 ${r.skipped.length} 筆：\n${r.skipped.slice(0,10).join('\n')}${r.skipped.length > 10 ? '\n…' : ''}` : '');
-    const ta = $('#gimport-text'); if(ta) ta.value = '';
-    updateGbankInfo();
-    toast(`文法題目匯入完成：新增 ${r.added}、更新 ${r.updated}`);
-  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = e.message; } }
+    if(grp.w.length){
+      const r = importWords(grp.w), nf = r.skipped.filter(x => x.endsWith('總庫沒有這個字')).length;
+      lines.push(`單字：新增 ${r.added} 個，更新 ${r.updated} 個`
+        + (r.tagged ? `\n　加上分組標籤 ${r.tagged} 個字${r.tagSame ? `（其中 ${r.tagSame} 個原本就有）` : ''}` : '')
+        + (r.replaced.length ? `\n　已用完整資料覆蓋 ${r.replaced.length} 個手動新增的字（進度保留）：${r.replaced.slice(0,30).join('、')}${r.replaced.length > 30 ? '…' : ''}` : '')
+        + (r.badTags.length ? `\n　無法辨識的分組標籤已忽略：${r.badTags.join('、')}` : '')
+        + (nf ? `\n　其中 ${nf} 筆標記用條目在總庫找不到這個字` : '') + skipText(r.skipped));
+      sum.push(`單字 ${r.added + r.updated}`);
+    }
+    if(grp.q.length){
+      const r = await importQuestions(grp.q);
+      lines.push(`克漏字：新增 ${r.added} 題，更新 ${r.updated} 題` + (r.noWord ? `\n　其中 ${r.noWord} 個字還不在總庫，匯入這些字後就會出題` : '') + skipText(r.skipped));
+      sum.push(`克漏字 ${r.added + r.updated}`);
+    }
+    if(grp.g.length){
+      const r = await importGrammar(grp.g);
+      lines.push(`文法：新增 ${r.added} 題，更新 ${r.updated} 題` + skipText(r.skipped));
+      sum.push(`文法 ${r.added + r.updated}`);
+    }
+    if(grp.r.length){
+      const r = await importReading(grp.r);
+      lines.push(`閱讀：新增 ${r.added} 篇，更新 ${r.updated} 篇（共 ${r.qn} 題）` + skipText(r.skipped));
+      sum.push(`閱讀 ${r.added + r.updated} 篇`);
+    }
+  }catch(e){ lines.push(e.message); bad = true; }
+  if(unk.length) lines.push(`無法判斷種類，已略過 ${unk.length} 筆（第 ${unk.slice(0,10).join('、')}${unk.length > 10 ? '…' : ''} 筆）`);
+  if(!lines.length) lines.push('沒有可以匯入的資料。');
+  show(lines.join('\n'), bad || !sum.length);
+  if(sum.length){ const ta = $('#import-text'); if(ta) ta.value = ''; updateQbankInfo(); toast(`匯入完成：${sum.join('、')}`); }
 }
 async function doRestore(text){
   try{
@@ -2872,7 +2868,14 @@ async function doRestore(text){
 }
 
 const ACT = {
-  tab: el => { TAB = el.dataset.tab; OPEN_BOOK = null; DRAWN = null; BOOK_EDIT = false; render(); window.scrollTo(0,0); },
+  tab: el => { TAB = el.dataset.tab; OPEN_BOOK = null; DRAWN = null; BOOK_EDIT = false; SET_PAGE = 'main'; render(); window.scrollTo(0,0); },
+  'set-page': el => { SET_PAGE = el.dataset.k; render(); window.scrollTo(0,0); },
+  /* 說明 ⓘ：展開或收起標題後面的說明框（v1.10） */
+  tip: el => { const box = el.parentElement.nextElementSibling; if(box && box.classList.contains('tipbox')) box.hidden = !box.hidden; },
+  'today-toggle': () => { TODAY_OPEN = !TODAY_OPEN; render(); },
+  'books-done': () => { BOOKS_DONE_OPEN = !BOOKS_DONE_OPEN; render(); },
+  'stats-more': () => { STATS_MORE = !STATS_MORE; const y = window.scrollY; render(); window.scrollTo(0, y); },
+  'pool-all': () => { POOL_ALL = !POOL_ALL; const y = window.scrollY; render(); window.scrollTo(0, y); },
   wtab: el => { WTAB = el.dataset.k; render(); },
   'err-tab': el => { ERR_TAB = el.dataset.k; render(); },
   'mastered-list': () => openMasteredList(),
@@ -2892,7 +2895,7 @@ const ACT = {
     if(!list.length) return toast('目前沒有手動新增的單字');
     toast(await copyText(list.join('\n')) ? `已複製 ${list.length} 個字` : '複製失敗，請再試一次');
   },
-  'goto-import': () => { TAB = 'settings'; render(); setTimeout(() => $('#import-sec').scrollIntoView(), 30); },
+  'goto-import': () => { TAB = 'settings'; SET_PAGE = 'data'; render(); window.scrollTo(0,0); },
   'start-today': () => startToday(),
   'pick-mastery': () => { if(Object.keys(W).length < 4) return toast('總庫至少需要 4 個單字才能出選擇題'); openScopeSheet(); },
   'start-review': () => { const d = dueIds(); if(d.length) startSession([ReviewPhase(shuffle(d))]); },
@@ -2946,22 +2949,18 @@ const ACT = {
   toggle: el => { S[el.dataset.k] = !S[el.dataset.k]; save('settings'); render(); },
   step: el => { const k = el.dataset.k; S[k] = Math.min(+el.dataset.hi, Math.max(+el.dataset.lo, S[k] + +el.dataset.d)); save('settings'); render(); },
   'train-book': el => { const id = el.dataset.id; S.trainBooks = S.trainBooks.includes(id) ? S.trainBooks.filter(x => x !== id) : S.trainBooks.concat(id); save('settings'); render(); },
-  'import-words': () => { const t = $('#import-text').value.trim(); if(!t) return toast('請先貼上 JSON 或選擇檔案'); doImportWords(t); },
-  'import-file': async () => { const t = await readFile(); if(t) doImportWords(t); },
-  'qimport': () => { const t = $('#qimport-text').value.trim(); if(!t) return toast('請先貼上題目 JSON 或選擇檔案'); doImportQuestions(t); },
-  'qimport-file': async () => { const t = await readFile(); if(t) doImportQuestions(t); },
+  'import-go': () => { const t = $('#import-text').value.trim(); if(!t) return toast('請先貼上 JSON 或選擇檔案'); doImport(t); },
+  'import-file': async () => { const t = await readFile(); if(t) doImport(t); },
   'qclear': async () => {
     const n = Object.keys(Q).length; if(!n) return;
     if(!confirm(`確定要清空克漏字題庫（${n} 題）嗎？單字與學習進度不受影響，之後可重新匯入題目。`)) return;
-    try{ await qReplaceAll([]); updateQbankInfo(); const out = $('#qimport-result'); if(out) out.textContent = ''; toast('已清空題庫'); }
+    try{ await qReplaceAll([]); updateQbankInfo(); toast('已清空題庫'); }
     catch(e){ toast('清空題庫失敗'); }
   },
-  'gimport': () => { const t = $('#gimport-text').value.trim(); if(!t) return toast('請先貼上文法題 JSON 或選擇檔案'); doImportGrammar(t); },
-  'gimport-file': async () => { const t = await readFile(); if(t) doImportGrammar(t); },
   'gclear': async () => {
     const n = gIds().length; if(!n) return;
     if(!confirm(`確定要清空文法題庫（${n} 題）嗎？作答紀錄與錯題本會保留，重新匯入同 id 的題目後即可接續。單字與其他資料不受影響。`)) return;
-    try{ await gReplaceAll([]); updateGbankInfo(); const out = $('#gimport-result'); if(out) out.textContent = ''; toast('已清空文法題庫'); }
+    try{ await gReplaceAll([]); updateQbankInfo(); toast('已清空文法題庫'); }
     catch(e){ toast('清空文法題庫失敗'); }
   },
   'reading-open': () => { if(!rIds('all').length) return toast('閱讀題庫是空的，請先到設定頁匯入題目'); openReadingSheet(); },
@@ -2977,12 +2976,10 @@ const ACT = {
   rreview: () => { RS.phase = 'review'; RS.a = 0; RS.b = RS.flat.length; RS.shownUi = -1; rGo(0, true); },
   rresult: () => rMockEnd(),
   ragain: () => { const f = RS && RS.again; closeSession(); if(f) f(); },
-  rimport: () => { const t = $('#rimport-text').value.trim(); if(!t) return toast('請先貼上閱讀題 JSON 或選擇檔案'); doImportReading(t); },
-  'rimport-file': async () => { const t = await readFile(); if(t) doImportReading(t); },
   rclear: async () => {
     const n = rIds('all').length; if(!n) return;
     if(!confirm(`確定要清空閱讀題庫（${n} 篇）嗎？作答紀錄與模擬成績會保留，重新匯入同 id 的題目後即可接續。`)) return;
-    try{ await rReplaceAll([]); updateRbankInfo(); const out = $('#rimport-result'); if(out) out.textContent = ''; toast('已清空閱讀題庫'); }
+    try{ await rReplaceAll([]); updateQbankInfo(); toast('已清空閱讀題庫'); }
     catch(e){ toast('清空閱讀題庫失敗'); }
   },
   'grammar-open': () => { if(!gIds().length) return toast('文法題庫是空的，請先到設定頁匯入題目'); openGrammarSheet(); },
@@ -3006,7 +3003,7 @@ const ACT = {
     try{ await QLOAD; await qReplaceAll([]); }catch(e){}
     try{ await gReplaceAll([]); }catch(e){}
     try{ await rReplaceAll([]); }catch(e){}
-    TAB = 'home'; render(); toast('已全部重設');
+    TAB = 'home'; SET_PAGE = 'main'; render(); toast('已全部重設');
   },
   /* 練習中 */
   quit: () => {
